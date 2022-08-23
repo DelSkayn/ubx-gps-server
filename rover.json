@@ -1,0 +1,23 @@
+[
+  {"kind": "usb-outprot-nmea", "value":false},
+  {"kind": "usb-outprot-rtcm3x", "value":false},
+  {"kind": "usb-inprot-rtcm3x", "value":true},
+  {"kind": "rate-meas", "value": 1000},
+
+  { "kind": "spi-outprot-ubx", "value": false },
+  { "kind": "spi-outprot-nmea", "value":false }, 
+  { "kind": "spi-outprot-rtcm3x", "value":false }, 
+  { "kind": "uart1-outprot-ubx", "value":false }, 
+  { "kind": "uart1-outprot-nmea", "value":false }, 
+  { "kind": "uart1-outprot-rtcm3x", "value":false },
+  { "kind": "uart2-outprot-ubx", "value":false }, 
+  { "kind": "uart2-outprot-nmea", "value":false }, 
+  { "kind": "uart2-outprot-rtcm3x", "value":false },
+
+  { "kind": "infmsg-ubx-usb", "value":[
+    "Error","Warning","Notice","Test","Debug"
+  ]},
+
+  { "kind": "msgout-ubx-nav-pvt-usb", "value":1 },
+  { "kind": "msgout-ubx-nav-eoe-usb", "value":1 }
+]
