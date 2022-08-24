@@ -592,7 +592,7 @@ impl Nav {
                 let b = tag(b, 40u16).map_invalid(Error::InvalidLen)?;
                 pread!(b =>{
                     version: u8,
-                    _res0: [u8:3],
+                    _res0: [u8;3],
                     i_tow: u32,
                     dur: u32,
                     mean_x: i32,
