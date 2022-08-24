@@ -113,6 +113,13 @@ impl_enum! {
 }
 
 impl_enum! {
+    pub enum PosType: u8{
+        Ecef = 0,
+        Llh = 1
+    }
+}
+
+impl_enum! {
     pub enum StopBits: u8{
         Half = 0,
         One = 1,
@@ -265,7 +272,8 @@ impl_value! {
 
         NavhpgDgnssmode(RtkMode) = 0x20140011,
 
-        TmodeMode(Tmode) = 0x20030002,
+        TmodeMode(Tmode) = 0x20030001,
+        TmodePosType(PosType) = 0x20030002,
         TmodeEcefX(i32) = 0x20030003,
         TmodeEcefY(i32) = 0x20030004,
         TmodeEcefZ(i32) = 0x20030005,
