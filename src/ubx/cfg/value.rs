@@ -103,6 +103,15 @@ impl_enum! {
     }
 }
 
+
+impl_enum! {
+    pub enum Tmode: u8{
+        Disabled = 0,
+        SurveyIn = 1,
+        Fixed = 2
+    }
+}
+
 impl_enum! {
     pub enum StopBits: u8{
         Half = 0,
@@ -255,6 +264,17 @@ impl_value! {
         MsgoutUbxRxmSfrbxUsb(u8) = 0x20910234,
 
         NavhpgDgnssmode(RtkMode) = 0x20140011,
+
+        TmodeMode(Tmode) = 0x20030002,
+        TmodeEcefX(i32) = 0x20030003,
+        TmodeEcefY(i32) = 0x20030004,
+        TmodeEcefZ(i32) = 0x20030005,
+        TmodeEcefXHp(i8) = 0x20030006,
+        TmodeEcefYHp(i8) = 0x20030007,
+        TmodeEcefZHp(i8) = 0x20030008,
+        TmodeFixedPosAcc(u32) = 0x4003000f,
+        TmodeSvinMinDur(u32) = 0x40030010,
+        TmodeSvinAccLimit(u32) = 0x40030011,
 
         SignalGpsEna(bool) = 0x1031001f,
         SignalGpsL1caEna(bool) = 0x10310001,

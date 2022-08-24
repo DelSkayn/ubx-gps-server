@@ -9,6 +9,7 @@ use crate::device::GpsDevice;
 mod cat;
 mod config;
 mod server;
+mod put;
 
 pub struct CmdData {
     verbose: bool,
@@ -49,6 +50,7 @@ pub async fn run() -> Result<()> {
         .subcommand(config::subcmd())
         .subcommand(cat::subcmd())
         .subcommand(server::subcmd())
+        .subcommand(put::subcmd())
         .get_matches();
 
     let verbose = *matches.get_one::<bool>("verbose").unwrap();
@@ -68,6 +70,7 @@ pub async fn run() -> Result<()> {
         Some(("config", matches)) => config::cmd(&mut data, matches).await,
         Some(("cat", matches)) => cat::cmd(&mut data, matches).await,
         Some(("server", matches)) => server::cmd(&mut data, matches).await,
+        Some(("put", matches)) => put::cmd(&mut data, matches).await,
         _ => unreachable!(),
     }
 }

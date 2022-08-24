@@ -15,6 +15,9 @@
   { "kind": "uart2-outprot-nmea", "value":false }, 
   { "kind": "uart2-outprot-rtcm3x", "value":false },
 
+  { "kind": "tmode-mode", "value":"SurveyIn"},
+  { "kind": "msgout-ubx-nav-svin-usb", "value":1},
+
   { "kind": "infmsg-ubx-usb", "value":[
     "Error","Warning","Notice","Test","Debug"
   ]},

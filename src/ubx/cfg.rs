@@ -2,7 +2,7 @@ use std::mem;
 
 use crate::{
     impl_bitfield, impl_enum,
-    parse::{read_u16, read_u8, tag, Error, ParseData, Result, ResultExt, ser_bitflags},
+    parse::{self, read_u16, read_u8, ser_bitflags, tag, Error, ParseData, Result, ResultExt},
     pread, pwrite,
 };
 use enumflags2::{bitflags, BitFlags};
@@ -97,7 +97,7 @@ impl Mode {
 
 #[bitflags]
 #[repr(u16)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize,Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProtoMask {
     Ubx = 0b000001,
     Nmea = 0b000010,
@@ -109,7 +109,7 @@ impl_bitfield!(ProtoMask);
 
 #[bitflags]
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize,Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BitLayer {
     Ram = 0b001,
     Bbr = 0b010,
@@ -124,6 +124,48 @@ impl_enum! {
         Bbr = 1,
         Flash = 2,
         Default = 7
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum TMode {
+    Disabled,
+    SurvayIn,
+    FixedMode,
+    Reserved(u8),
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct TModeFlags {
+    lla: bool,
+    mode: TMode,
+}
+
+impl ParseData for TModeFlags {
+    fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
+        let (b, d) = u16::parse_read(b)?;
+
+        let mode = match (d & 0xff) as u8 {
+            0 => TMode::Disabled,
+            1 => TMode::SurvayIn,
+            2 => TMode::FixedMode,
+            x => TMode::Reserved(x),
+        };
+
+        let lla = (d >> 8 & 0b1) != 0;
+        Ok((b, TModeFlags { lla, mode }))
+    }
+
+    fn parse_write(self, b: &mut Vec<u8>) {
+        let mode = match self.mode {
+            TMode::Disabled => 0,
+            TMode::SurvayIn => 1,
+            TMode::FixedMode => 2,
+            TMode::Reserved(x) => x,
+        };
+
+        let data = ((self.lla as u16) << 8) | mode as u16;
+        data.parse_write(b);
     }
 }
 
@@ -182,6 +224,19 @@ pub enum Cfg {
         #[serde(with = "ser_bitflags")]
         layer: BitFlags<BitLayer>,
         values: Vec<ValueKey>,
+    },
+    TMode3 {
+        version: u8,
+        flags: TModeFlags,
+        ecefx_or_lat: i32,
+        ecefy_or_lon: i32,
+        ecefz_or_alt: i32,
+        ecefx_or_lat_hp: i8,
+        ecefy_or_lon_hp: i8,
+        ecefz_or_alt_hp: i8,
+        fixed_pos_acc: u32,
+        svin_min_dur: u32,
+        svin_accl_limit: u32,
     },
 }
 
@@ -318,6 +373,38 @@ impl Cfg {
                     [0u8;2],
                 });
             }
+
+            Cfg::TMode3 {
+                version,
+                flags,
+                ecefx_or_lat,
+                ecefy_or_lon,
+                ecefz_or_alt,
+                ecefx_or_lat_hp,
+                ecefy_or_lon_hp,
+                ecefz_or_alt_hp,
+                fixed_pos_acc,
+                svin_min_dur,
+                svin_accl_limit,
+            } => {
+                pwrite!(b => {
+                    40u16,
+                    version,
+                    0u8,
+                    flags,
+                    ecefx_or_lat,
+                    ecefy_or_lon,
+                    ecefz_or_alt,
+                    ecefx_or_lat_hp,
+                    ecefy_or_lon_hp,
+                    ecefz_or_alt_hp,
+                    0u8,
+                    fixed_pos_acc,
+                    svin_min_dur,
+                    svin_accl_limit,
+                    [0u8;8],
+                });
+            }
         }
     }
 
@@ -332,6 +419,7 @@ impl Cfg {
             Self::ValDel { .. } => 0x8c,
             Self::PrtUart { .. } => 0x0,
             Self::PrtUsb { .. } => 0x0,
+            Self::TMode3 { .. } => 0x71,
         }
     }
 
@@ -446,6 +534,41 @@ impl Cfg {
                     }
                     _ => Err(Error::InvalidLen),
                 }
+            }
+            0x71 => {
+                parse::tag(b, 40u16).map_invalid(Error::InvalidLen)?;
+                pread!(b => {
+                    version: u8,
+                    _res: u8,
+                    flags: TModeFlags,
+                    ecefx_or_lat: i32,
+                    ecefy_or_lon: i32,
+                    ecefz_or_alt: i32,
+                    ecefx_or_lat_hp: i8,
+                    ecefy_or_lon_hp: i8,
+                    ecefz_or_alt_hp: i8,
+                    _res: u8,
+                    fixed_pos_acc: u32,
+                    svin_min_dur: u32,
+                    svin_accl_limit: u32,
+                    _res: [u8;8],
+                });
+                Ok((
+                    b,
+                    Cfg::TMode3 {
+                        version,
+                        flags,
+                        ecefx_or_lat,
+                        ecefy_or_lon,
+                        ecefz_or_alt,
+                        ecefx_or_lat_hp,
+                        ecefy_or_lon_hp,
+                        ecefz_or_alt_hp,
+                        fixed_pos_acc,
+                        svin_min_dur,
+                        svin_accl_limit,
+                    },
+                ))
             }
             x => Err(Error::InvalidMsg(x)),
         }
