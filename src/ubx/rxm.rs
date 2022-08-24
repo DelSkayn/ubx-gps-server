@@ -32,7 +32,7 @@ impl Rxm {
         let (b, msg) = u8::parse_read(b)?;
         match msg {
             0x32 => {
-                parse::tag(b, 8u16).map_invalid(Error::InvalidLen)?;
+                let b = parse::tag(b, 8u16).map_invalid(Error::InvalidLen)?;
                 pread!(b => {
                     version: u8,
                     flags: BitFlags<Flags>,

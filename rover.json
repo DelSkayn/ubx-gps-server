@@ -18,6 +18,9 @@
     "Error","Warning","Notice","Test","Debug"
   ]},
 
+  { "kind": "msgout-ubx-rxm-rtcm-usb", "value":1 },
   { "kind": "msgout-ubx-nav-pvt-usb", "value":1 },
+  { "kind": "msgout-ubx-nav-hpposecef-usb", "value":1 },
+  { "kind": "msgout-ubx-nav-rel-pos-ned-usb", "value":1 },
   { "kind": "msgout-ubx-nav-eoe-usb", "value":1 }
 ]

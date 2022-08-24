@@ -51,16 +51,13 @@ pub async fn rtcm_stream(stream: TcpStream, send: &mpsc::Sender<RtcmFrame<'stati
     let mut buf = BufReader::new(stream);
     loop {
         let msg = Msg::from_reader(&mut buf).await?;
-        let (gps_msg, len) = match GpsMsg::from_bytes(msg.as_bytes()) {
+        let gps_msg = match serde_json::from_slice::<GpsMsg>(msg.as_bytes()) {
             Ok(x) => x,
             Err(e) => {
                 warn!("retrieved invalid rtcm message: {:?}", e);
                 continue;
             }
         };
-        if len != msg.as_bytes().len() {
-            warn!("rtcm message did not use full message");
-        }
         if let GpsMsg::Rtcm(rtcm) = gps_msg {
             if send.send(rtcm.into_owned()).await.is_err() {
                 return Ok(());

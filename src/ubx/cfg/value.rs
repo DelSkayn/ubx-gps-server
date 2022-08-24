@@ -21,6 +21,14 @@ pub enum MsgMask {
 
 impl_bitfield!(MsgMask);
 
+impl_enum!{
+    pub enum RtkFix: u8{
+        RtkFloat = 2,
+        RtkFixed = 3
+    }
+}
+
+
 macro_rules! impl_value{
     (
         pub enum Value{
@@ -220,7 +228,7 @@ impl_value! {
         MsgoutUbxNavClockUsb(u8) = 0x20910068,
         MsgoutUbxNavDopUsb(u8) = 0x2091003b,
         MsgoutUbxNavEoeUsb(u8) = 0x20910162,
-        MsgoutUbxNavHppsecefUsb(u8) = 0x20910031,
+        MsgoutUbxNavHpposecefUsb(u8) = 0x20910031,
         MsgoutUbxNavHpposllhUsb(u8) = 0x20910036,
         MsgoutUbxNavOdoUsb(u8) = 0x20910081,
         MsgoutUbxNavOrbUsb(u8) = 0x20910013,

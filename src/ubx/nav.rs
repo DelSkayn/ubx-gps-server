@@ -45,6 +45,72 @@ pub enum RelFlags {
     RelPosNormalized = 0b1000000000,
 }
 
+#[derive(Clone,Copy,Debug,PartialEq,Eq,Serialize,Deserialize)]
+pub enum PsmState{
+    NotActive = 0,
+    Enabled = 1,
+    Acquisition = 2,
+    Tracking = 3,
+    PowerOptimizedTracking = 4,
+    Inactive = 5
+}
+
+#[derive(Clone,Copy,Debug,PartialEq,Eq,Serialize,Deserialize)]
+pub enum CarrierPhaseSol{
+    NoSolution = 0,
+    Float = 1,
+    Fixed = 2,
+}
+
+#[derive(Clone,Copy,Debug,PartialEq,Eq,Serialize,Deserialize)]
+pub struct FixStatus{
+    car_sol: CarrierPhaseSol,
+    head_veh_valid: bool,
+    psm_state: PsmState,
+    diff_soln: bool,
+    gnss_fix_ok: bool,
+}
+
+impl ParseData for FixStatus{
+    fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
+        let (b,data) = u8::parse_read(b)?;
+        let psm_state = match (data >> 2) & 0b111{
+            0 => PsmState::NotActive,
+            1 => PsmState::Enabled,
+            2 => PsmState::Acquisition,
+            3 => PsmState::Tracking,
+            4 => PsmState::PowerOptimizedTracking,
+            5 => PsmState::Inactive,
+            _ => return Err(Error::Invalid)
+        };
+
+        let car_sol = match (data >> 6) & 0b11{
+            0 => CarrierPhaseSol::NoSolution,
+            1 => CarrierPhaseSol::Float,
+            2 => CarrierPhaseSol::Fixed,
+            _ => return Err(Error::Invalid)
+        };
+
+        Ok((b,FixStatus{
+            car_sol,
+            head_veh_valid: (data >> 5) & 0b1 != 0,
+            psm_state,
+            diff_soln: (data >> 1) & 0b1 != 0,
+            gnss_fix_ok: data & 0b1 != 0,
+        }))
+    }
+
+    fn parse_write(self, b: &mut Vec<u8>) {
+        let data = (self.car_sol as u8) << 6
+            | (self.head_veh_valid as u8) << 5
+            | (self.psm_state as u8) << 2
+            | (self.diff_soln as u8) << 1
+            | self.gnss_fix_ok as u8;
+
+        b.push(data);
+    }
+}
+
 
 impl_bitfield!(RelFlags);
 
@@ -125,7 +191,7 @@ pub enum Nav {
         t_acc: u32,
         nano: i32,
         fix_type: FixType,
-        flags: u8,
+        flags: FixStatus,
         flags2: u8,
         numsv: u8,
         lon: i32,
@@ -363,7 +429,7 @@ impl Nav {
                     t_acc: u32,
                     nano: i32,
                     fix_type: FixType,
-                    flags: u8,
+                    flags: FixStatus,
                     flags2: u8,
                     numsv: u8,
                     lon: i32,
@@ -427,6 +493,7 @@ impl Nav {
                 Ok((b, res))
             }
             0x3c => {
+                let b = tag(b, 0x40u16).map_invalid(Error::InvalidLen)?;
                 pread!(b => {
                     version: u8,
                     _res: u8,
