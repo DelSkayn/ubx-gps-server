@@ -588,11 +588,11 @@ impl Nav {
                     },
                 ))
             }
-            0x38 => {
+            0x3b => {
                 let b = tag(b, 40u16).map_invalid(Error::InvalidLen)?;
                 pread!(b =>{
                     version: u8,
-                    _res0: u8,
+                    _res0: [u8:3],
                     i_tow: u32,
                     dur: u32,
                     mean_x: i32,
@@ -606,7 +606,7 @@ impl Nav {
                     obs: u32,
                     valid: u8,
                     active: u8,
-                    _res2: u16,
+                    _res2: [u8;2],
                 });
 
                 Ok((
