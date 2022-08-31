@@ -98,7 +98,7 @@ pub async fn cmd(data: &mut CmdData, arg: &ArgMatches) -> Result<()> {
         super::config::set(data, x).await?;
     }
 
-    let mut server = StreamServer::new((address.as_str(), *port))
+    let mut server = StreamServer::new((address.as_str(), *port), false)
         .await
         .context("failed to create server")?;
 
@@ -117,7 +117,7 @@ pub async fn cmd(data: &mut CmdData, arg: &ArgMatches) -> Result<()> {
                     info!("msg: {:?}", msg);
                     server.send(&msg).await?;
                 }
-                _ = server.accept() => {}
+                _ = server.recv() => {}
             }
         } else {
             tokio::select! {
@@ -126,7 +126,7 @@ pub async fn cmd(data: &mut CmdData, arg: &ArgMatches) -> Result<()> {
                     info!("msg: {:?}", msg);
                     server.send(&msg).await?;
                 }
-                _ = server.accept() => {}
+                _ = server.recv() => {}
             }
         }
     }
