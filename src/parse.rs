@@ -1,23 +1,28 @@
 use std::result::Result as StdResult;
 
-pub mod ser_bitflags{
-    use enumflags2::{BitFlags, BitFlag};
-    use serde::{Serializer, Serialize, Deserializer, Deserialize};
+pub mod ser_bitflags {
+    use enumflags2::{BitFlag, BitFlags};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    pub fn serialize<T: BitFlag + Serialize, S>(flags: &BitFlags<T>,s: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    pub fn serialize<T: BitFlag + Serialize, S>(
+        flags: &BitFlags<T>,
+        s: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
     {
         let list: Vec<_> = flags.iter().collect();
         list.serialize(s)
     }
 
-    pub fn deserialize<'de, D, T>(d: D) -> Result<BitFlags<T>,D::Error>
-        where D: Deserializer<'de>,
-              T: Deserialize<'de> + BitFlag,
+    pub fn deserialize<'de, D, T>(d: D) -> Result<BitFlags<T>, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: Deserialize<'de> + BitFlag,
     {
         let v = Vec::<T>::deserialize(d)?;
         let mut res = BitFlags::empty();
-        for v in v{
+        for v in v {
             res |= v
         }
         Ok(res)
@@ -28,6 +33,16 @@ pub mod ser_bitflags{
 macro_rules! pread {
     ($buf:ident => { $($name:ident : $t:ty,)* })=> {
         $(let ($buf,$name) = <$t>::parse_read($buf)?;)*
+    };
+}
+
+#[macro_export]
+macro_rules! pread_struct {
+    ($buf:ident => $name:ident$(::$p:ident)*{ $($field:ident : $t:ty,)* })=> {
+        {
+            $(let ($buf,$field) = <$t>::parse_read($buf)?;)*
+            ($buf,$name$(::$p)*{ $($field,)*})
+        }
     };
 }
 
@@ -216,17 +231,15 @@ impl ParseData for bool {
 
 impl<T: ParseData, const N: usize> ParseData for [T; N] {
     fn parse_read(mut b: &[u8]) -> Result<(&[u8], Self)> {
-        let mut tmp = Vec::with_capacity(N);
-        for _ in 0..N {
+        let mut tmp = std::mem::MaybeUninit::<[T; N]>::uninit();
+        for i in 0..N {
             let (nb, t) = T::parse_read(b)?;
             b = nb;
-            tmp.push(t)
+            unsafe {
+                tmp.as_mut_ptr().cast::<T>().add(i).write(t);
+            }
         }
-        if let Ok(x) = Self::try_from(tmp) {
-            Ok((b, x))
-        } else {
-            unreachable!()
-        }
+        Ok((b, unsafe { tmp.assume_init() }))
     }
 
     fn parse_write(self, b: &mut Vec<u8>) {

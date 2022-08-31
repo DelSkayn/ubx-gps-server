@@ -38,13 +38,11 @@ pub fn subcmd<'help>() -> Command<'help> {
                 [address] "The address to host the server on"
             )
             .required(false)
-            .default_value("localhost"),
+            .default_value("0.0.0.0"),
         )
-        .arg(
-            arg!(
-                -c --config <PATH> "Apply config file before running server"
-                )
-            )
+        .arg(arg!(
+        -c --config <PATH> "Apply config file before running server"
+        ))
 }
 
 pub async fn rtcm_stream(stream: TcpStream, send: &mpsc::Sender<RtcmFrame<'static>>) -> Result<()> {
@@ -95,9 +93,9 @@ pub async fn cmd(data: &mut CmdData, arg: &ArgMatches) -> Result<()> {
     let address = arg.get_one::<String>("address").unwrap();
     let port = arg.get_one::<u16>("port").unwrap();
 
-    if let Some(x) = arg.get_one::<String>("config"){
+    if let Some(x) = arg.get_one::<String>("config") {
         info!("applying config");
-        super::config::set(data,x).await?;
+        super::config::set(data, x).await?;
     }
 
     let mut server = StreamServer::new((address.as_str(), *port))

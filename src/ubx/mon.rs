@@ -1,6 +1,6 @@
 use crate::{
-    parse::{self, Error, ParseData, Result},
-    pread, pwrite,
+    parse::{self, Error, ParseData, Result, ResultExt},
+    pread, pread_struct, pwrite,
 };
 use serde::{Deserialize, Serialize};
 
@@ -63,7 +63,7 @@ pub struct CommsBlock {
     rx_peak_usage: u8,
     overrun_errs: u16,
     msgs: [u16; 4],
-    skipped: u32
+    skipped: u32,
 }
 
 impl ParseData for CommsBlock {
@@ -131,6 +131,15 @@ pub enum Mon {
         prot_ids: [u8; 4],
         blocks: Vec<CommsBlock>,
     },
+    Msgpp {
+        msg1: [u16; 8],
+        msg2: [u16; 8],
+        msg3: [u16; 8],
+        msg4: [u16; 8],
+        msg5: [u16; 8],
+        msg6: [u16; 8],
+        skipped: [u32; 6],
+    },
 }
 
 impl Mon {
@@ -172,6 +181,19 @@ impl Mon {
                         blocks,
                     },
                 ))
+            }
+            0x06 => {
+                parse::tag(b, 120u16).map_invalid(Error::InvalidLen)?;
+                let res = pread_struct!(b => Self::Msgpp{
+                    msg1: [u16; 8],
+                    msg2: [u16; 8],
+                    msg3: [u16; 8],
+                    msg4: [u16; 8],
+                    msg5: [u16; 8],
+                    msg6: [u16; 8],
+                    skipped: [u32; 6],
+                });
+                Ok(res)
             }
             x => Err(Error::InvalidMsg(x)),
         }

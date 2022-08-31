@@ -1,6 +1,13 @@
 
 from socket import socket
 import json
+import sys
+
+if len(sys.argv) < 3:
+    print("Enter a adress");
+
+addr_socket = sys.argv[1]
+port_socket = sys.argv[2]
 
 class GpsSocket:
     def __init__(self):
@@ -31,9 +38,36 @@ class GpsSocket:
             self.bytes += self.socket.recv(4096)
 
 socket = GpsSocket()
-socket.connect(("127.0.0.1",9165))
+socket.connect((addr_socket,int(port_socket)))
+
+def lookup(dict,path):
+    next = dict.get(path[0])
+    if next is None or len(path[1:]) == 0:
+        return next
+    else:
+        return lookup(next,path[1:])
+
+def filter(dict,paths):
+    for p in paths:
+        res = lookup(dict,p)
+        if res is not None:
+            yield '.'.join(p), res
+
+
+PATHS = [
+    ['Ubx','Nav','Svin'],
+    ['Ubx','Nav','Pvt','flags','car_sol'],
+    ['Ubx','Nav','Pvt','flags','diff_soln'],
+    ['Ubx','Nav','Pvt','s_acc'],
+    ['Ubx','Nav','Pvt','v_acc'],
+    #['Ubx','Nav','HPPOSecef'],
+    ['Ubx','Nav','HPPOSecef','p_acc'],
+    ['Ubx','Nav','RelPosNed'],
+    ['Ubx','Rxm','Rtcm','msg_type'],
+]
 
 while True:
-    print(socket.next())
-
-
+    msg = socket.next()
+    #print(msg)
+    for p,f in filter(msg,PATHS):
+        print(p,":",f)
