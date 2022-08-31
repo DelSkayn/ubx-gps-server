@@ -13,7 +13,7 @@
   { "kind": "uart2-outprot-nmea", "value":false }, 
   { "kind": "uart2-outprot-rtcm3x", "value":false },
 
-  { "kind": "tmode-mode", "value":"Disabled"},
+  { "kind": "tmode-mode", "value":"SurveyIn"},
   { "kind": "tmode-svin-acc-limit", "value":3001 },
 
   { "kind": "infmsg-ubx-usb", "value":[
@@ -24,7 +24,8 @@
   { "kind": "msgout-ubx-nav-eoe-usb", "value":1 },
   { "kind": "msgout-ubx-rxm-rtcm-usb", "value":1 },
   { "kind": "msgout-ubx-mon-comms-usb", "value":1},
-  { "kind": "msgout-ubx-mon-rf-usb", "value":1},
+  { "kind": "msgout-ubx-mon-rf-usb", "value":0},
+  { "kind": "msgout-ubx-nav-sig-usb", "value":1},
   { "kind": "msgout-ubx-nav-sat-usb", "value":0},
   { "kind": "msgout-ubx-nav-svin-usb", "value":1},
 

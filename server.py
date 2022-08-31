@@ -41,6 +41,13 @@ socket = GpsSocket()
 socket.connect((addr_socket,int(port_socket)))
 
 def lookup(dict,path):
+    if isinstance(dict,list):
+        next = dict[int(path[0])]
+        if len(path) > 1:
+            return lookup(next,path[1:])
+        else:
+            return next
+
     next = dict.get(path[0])
     if next is None or len(path[1:]) == 0:
         return next
@@ -55,7 +62,13 @@ def filter(dict,paths):
 
 
 PATHS = [
-    ['Ubx','Nav','Svin'],
+    #['Ubx','Nav','Svin'],
+    ['Ubx','Mon','Rf','blocks','0','ant_status'],
+    ['Ubx','Mon','Rf','blocks','0','ant_power'],
+    ['Ubx','Mon','Rf','blocks','0','noise_per_ms'],
+    ['Ubx','Mon','Rf','blocks','1','ant_status'],
+    ['Ubx','Mon','Rf','blocks','1','ant_power'],
+    ['Ubx','Mon','Rf','blocks','1','noise_per_ms'],
     ['Ubx','Nav','Pvt','flags','car_sol'],
     ['Ubx','Nav','Pvt','flags','diff_soln'],
     ['Ubx','Nav','Pvt','s_acc'],
@@ -68,6 +81,10 @@ PATHS = [
 
 while True:
     msg = socket.next()
+
+    sig = lookup(msg, ['Ubx','Nav','Sig','blocks'])
+    if sig is not None:
+        print(sum([b['cno'] for b in sig]) / len(sig))
     #print(msg)
     for p,f in filter(msg,PATHS):
         print(p,":",f)

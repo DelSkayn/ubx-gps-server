@@ -1,6 +1,6 @@
 use crate::{
-    impl_bitfield, impl_enum,
-    parse::{read_u16, read_u8, tag, Error, Offset, ParseData, Result, ResultExt, ser_bitflags},
+    impl_bitfield, impl_enum, impl_struct,
+    parse::{read_u16, read_u8, ser_bitflags, tag, Error, Offset, ParseData, Result, ResultExt},
     pread,
 };
 use enumflags2::{bitflags, BitFlags};
@@ -19,7 +19,7 @@ impl_enum! {
 
 #[bitflags]
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize,Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Valid {
     Date = 0b0001,
     Time = 0b0010,
@@ -31,7 +31,7 @@ impl_bitfield!(Valid);
 
 #[bitflags]
 #[repr(u32)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize,Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RelFlags {
     GnssFixOk = 0b0000000001,
     DiffSoln = 0b0000000010,
@@ -45,25 +45,25 @@ pub enum RelFlags {
     RelPosNormalized = 0b1000000000,
 }
 
-#[derive(Clone,Copy,Debug,PartialEq,Eq,Serialize,Deserialize)]
-pub enum PsmState{
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PsmState {
     NotActive = 0,
     Enabled = 1,
     Acquisition = 2,
     Tracking = 3,
     PowerOptimizedTracking = 4,
-    Inactive = 5
+    Inactive = 5,
 }
 
-#[derive(Clone,Copy,Debug,PartialEq,Eq,Serialize,Deserialize)]
-pub enum CarrierPhaseSol{
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CarrierPhaseSol {
     NoSolution = 0,
     Float = 1,
     Fixed = 2,
 }
 
-#[derive(Clone,Copy,Debug,PartialEq,Eq,Serialize,Deserialize)]
-pub struct FixStatus{
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FixStatus {
     car_sol: CarrierPhaseSol,
     head_veh_valid: bool,
     psm_state: PsmState,
@@ -71,33 +71,36 @@ pub struct FixStatus{
     gnss_fix_ok: bool,
 }
 
-impl ParseData for FixStatus{
+impl ParseData for FixStatus {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
-        let (b,data) = u8::parse_read(b)?;
-        let psm_state = match (data >> 2) & 0b111{
+        let (b, data) = u8::parse_read(b)?;
+        let psm_state = match (data >> 2) & 0b111 {
             0 => PsmState::NotActive,
             1 => PsmState::Enabled,
             2 => PsmState::Acquisition,
             3 => PsmState::Tracking,
             4 => PsmState::PowerOptimizedTracking,
             5 => PsmState::Inactive,
-            _ => return Err(Error::Invalid)
+            _ => return Err(Error::Invalid),
         };
 
-        let car_sol = match (data >> 6) & 0b11{
+        let car_sol = match (data >> 6) & 0b11 {
             0 => CarrierPhaseSol::NoSolution,
             1 => CarrierPhaseSol::Float,
             2 => CarrierPhaseSol::Fixed,
-            _ => return Err(Error::Invalid)
+            _ => return Err(Error::Invalid),
         };
 
-        Ok((b,FixStatus{
-            car_sol,
-            head_veh_valid: (data >> 5) & 0b1 != 0,
-            psm_state,
-            diff_soln: (data >> 1) & 0b1 != 0,
-            gnss_fix_ok: data & 0b1 != 0,
-        }))
+        Ok((
+            b,
+            FixStatus {
+                car_sol,
+                head_veh_valid: (data >> 5) & 0b1 != 0,
+                psm_state,
+                diff_soln: (data >> 1) & 0b1 != 0,
+                gnss_fix_ok: data & 0b1 != 0,
+            },
+        ))
     }
 
     fn parse_write(self, b: &mut Vec<u8>) {
@@ -111,7 +114,6 @@ impl ParseData for FixStatus{
     }
 }
 
-
 impl_bitfield!(RelFlags);
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -123,6 +125,23 @@ pub struct Satellite {
     azim: i16,
     pr_res: i16,
     flags: u32,
+}
+
+impl_struct! {
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct SigBlock{
+        gnss_id: u8,
+        sv_id: u8,
+        sig_id: u8,
+        freq_id: u8,
+        pr_res: i16,
+        cno: u8,
+        quality_ind: u8,
+        corr_source: u8,
+        iono_model: u8,
+        sig_flags: u16,
+        res: [u8; 4],
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -257,6 +276,13 @@ pub enum Nav {
         valid: u8,
         active: u8,
     },
+    Sig {
+        i_tow: u32,
+        version: u8,
+        num_sigs: u8,
+        res: [u8; 2],
+        blocks: Vec<SigBlock>,
+    },
     TimeGps {
         i_tow: u32,
         ftow: i32,
@@ -355,6 +381,32 @@ impl Nav {
                         ecef_z_hp,
                         flags,
                         p_acc,
+                    },
+                ))
+            }
+            0x43 => {
+                let (b, _len) = u16::parse_read(b)?;
+                pread!(b => {
+                    i_tow: u32,
+                    version: u8,
+                    num_sigs: u8,
+                    res: [u8; 2],
+                });
+                let mut loop_b = b;
+                let mut blocks = Vec::with_capacity(num_sigs as usize);
+                for _ in 0..num_sigs {
+                    let (b, block) = SigBlock::parse_read(loop_b)?;
+                    loop_b = b;
+                    blocks.push(block);
+                }
+                Ok((
+                    loop_b,
+                    Nav::Sig {
+                        i_tow,
+                        version,
+                        num_sigs,
+                        res,
+                        blocks,
                     },
                 ))
             }
