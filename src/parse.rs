@@ -51,7 +51,39 @@ macro_rules! pwrite {
     ($buf:ident => { $($name:expr,)* })=> {
         $($name.parse_write($buf);)*
     };
+
 }
+
+#[macro_export]
+macro_rules! impl_struct{
+    (
+        $(#[$m:meta])*
+        pub struct $name:ident{
+            $(
+            $field:ident: $ty:ty,
+            )*
+        }
+    ) => {
+        $(#[$m])*
+        pub struct $name{
+            $($field: $ty,)*
+        }
+
+        impl ParseData for $name {
+            fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
+                $(let (b,$field) = <$ty>::parse_read(b)?;)*
+                Ok((b,$name{
+                    $($field,)*
+                }))
+            }
+
+            fn parse_write(self, b: &mut Vec<u8>) {
+                $(self.$field.parse_write(b);)*
+            }
+        }
+    };
+}
+
 
 #[macro_export]
 macro_rules! impl_bitfield {

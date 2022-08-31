@@ -1,6 +1,6 @@
 use crate::{
-    parse::{self, Error, ParseData, Result, ResultExt},
     pread, pread_struct, pwrite,
+    parse::{self, Error, ParseData, Result, ResultExt}, impl_enum, impl_struct,
 };
 use serde::{Deserialize, Serialize};
 
@@ -64,6 +64,43 @@ pub struct CommsBlock {
     overrun_errs: u16,
     msgs: [u16; 4],
     skipped: u32,
+}
+
+impl_enum! {
+    pub enum AntStatus: u8{
+        Init = 0x00,
+        DontKnow = 0x01,
+        Ok = 0x02,
+        Short = 0x03,
+        Open = 0x04
+    }
+}
+
+
+impl_enum! {
+    pub enum AntPower: u8{
+        Off = 0x00,
+        On = 0x01,
+        DontKnow = 0x02
+    }
+}
+impl_struct!{
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct RfBlock{
+        block_id: u8,
+        flags: u8,
+        ant_status: AntStatus,
+        ant_power: AntPower,
+        pos_status: u32,
+        res1: [u8; 4],
+        agc_cnt: u16,
+        jam_ind: u16,
+        ofs_i: i8,
+        mag_i: u8,
+        ofs_q: i8,
+        mag_q: u8,
+        res2: [u8; 3],
+    }
 }
 
 impl ParseData for CommsBlock {
@@ -140,6 +177,12 @@ pub enum Mon {
         msg6: [u16; 8],
         skipped: [u32; 6],
     },
+    Rf{
+        version:u8,
+        n_blocks:u8,
+        res: [u8;2],
+        blocks: Vec<RfBlock>,
+    }
 }
 
 impl Mon {
@@ -194,6 +237,22 @@ impl Mon {
                     skipped: [u32; 6],
                 });
                 Ok(res)
+            }
+            0x38 => {
+                let (b,len) = u16::parse_read(b)?;
+                pread!(b => {
+                    version: u8,
+                    n_blocks: u8,
+                    res: [u8;2],
+                });
+                let blocks = Vec::with_capacity(n_blocks as usize);
+                let mut loop_b = b;
+                for n in 0..n_blocks{
+                    let (b,block) = RfBlock::parse_read(loop_b)?;
+                    loop_b = b;
+                    blocks.push(block);
+                }
+                Ok((loop_b,Self::Rf { version, n_blocks, res, blocks }))
             }
             x => Err(Error::InvalidMsg(x)),
         }

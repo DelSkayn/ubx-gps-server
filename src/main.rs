@@ -41,6 +41,20 @@ impl<'a> GpsMsg<'a> {
         }
     }
 
+    pub fn write_bytes(&self,b: &mut Vec<u8>){
+        match *self{
+            GpsMsg::Ubx(ref x) => {
+                x.write_bytes(b);
+            }
+            Self::Nmea(ref x) => {
+                b.extend_from_slice(x.as_bytes())
+            }
+            Self::Rtcm(ref x) => {
+                b.extend_from_slice(x.as_bytes())
+            }
+        }
+    }
+
     pub fn into_owned(self) -> GpsMsg<'static> {
         match self {
             GpsMsg::Nmea(x) => GpsMsg::Nmea(x.into_owned()),

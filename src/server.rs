@@ -8,6 +8,8 @@ use tokio::{
     net::{TcpListener, TcpStream, ToSocketAddrs},
 };
 
+use crate::GpsMsg;
+
 
 pub struct Msg<'a>(Cow<'a,[u8]>);
 
@@ -44,20 +46,22 @@ impl<'a> Msg<'a>{
 }
 
 pub struct StreamServer {
+    raw: bool,
     listener: TcpListener,
     connections: Vec<TcpStream>,
 }
 
 impl StreamServer {
-    pub async fn new<A: ToSocketAddrs>(a: A) -> Result<Self> {
+    pub async fn new<A: ToSocketAddrs>(a: A,raw: bool) -> Result<Self> {
         let listener = TcpListener::bind(a).await?;
         Ok(StreamServer {
+            raw,
             listener,
             connections: Vec::new(),
         })
     }
 
-    pub async fn accept(&mut self) -> Result<()> {
+    pub async fn recv(&mut self) -> Result<GpsMsg<'static>> {
         loop {
             let (incomming,addr) = self.listener.accept().await?;
             info!("recieved connection from {}",addr);
@@ -65,8 +69,14 @@ impl StreamServer {
         }
     }
 
-    pub async fn send<S: Serialize>(&mut self, d: &S) -> Result<()> {
-        let data = serde_json::to_vec(d)?;
+    pub async fn send(&mut self, d: &GpsMsg<'_>) -> Result<()> {
+        let data = if self.raw{
+            let mut res = Vec::new();
+            d.write_bytes(&mut res);
+            res
+        } else {
+            serde_json::to_vec(d)?
+        };
         let msg = Msg::from_vec(data);
         let future = self.connections.iter_mut().map(|x| 
             msg.write(x)
