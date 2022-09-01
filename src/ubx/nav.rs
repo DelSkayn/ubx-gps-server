@@ -1,19 +1,47 @@
 use crate::{
-    impl_bitfield, impl_enum, impl_struct,
+    impl_bitfield, impl_struct,
     parse::{read_u16, read_u8, ser_bitflags, tag, Error, Offset, ParseData, Result, ResultExt},
-    pread,
+    pread, pread_struct,
 };
 use enumflags2::{bitflags, BitFlags};
 use serde::{Deserialize, Serialize};
 
-impl_enum! {
-    pub enum FixType: u8 {
-        NoFix = 0,
-        DeadReckoning = 1,
-        Fix2D = 2,
-        Fix3D = 3,
-        Gnss = 4,
-        Time = 5
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FixType {
+    NoFix,
+    DeadReckoning,
+    Fix2D,
+    Fix3D,
+    Gnss,
+    Time,
+    Reserved(u8),
+}
+
+impl ParseData for FixType {
+    fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
+        let (b, d) = u8::parse_read(b)?;
+        let res = match d {
+            0 => Self::NoFix,
+            1 => Self::DeadReckoning,
+            2 => Self::Fix2D,
+            3 => Self::Fix3D,
+            4 => Self::Gnss,
+            5 => Self::Time,
+            x => Self::Reserved(x),
+        };
+        Ok((b,res))
+    }
+
+    fn parse_write(self, b: &mut Vec<u8>) {
+        match self {
+            Self::NoFix => 0u8.parse_write(b),
+            Self::DeadReckoning => 1u8.parse_write(b),
+            Self::Fix2D => 2u8.parse_write(b),
+            Self::Fix3D => 3u8.parse_write(b),
+            Self::Gnss => 4u8.parse_write(b),
+            Self::Time => 5u8.parse_write(b),
+            Self::Reserved(x) => x.parse_write(b),
+        }
     }
 }
 
@@ -144,8 +172,28 @@ impl_struct! {
     }
 }
 
+#[bitflags]
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StatusFlags{
+    GpsFixOk = 0b0001,
+    DiffSoln = 0b0010,
+    WknSet = 0b0100,
+    TowSet = 0b1000,
+}
+
+impl_bitfield!(StatusFlags);
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Nav {
+    Status {
+        i_tow: u32,
+        gps_fix: FixStatus,
+        flags: BitFlags<StatusFlags>,
+        fix_stat: u8,
+        ttgg: u32,
+        msss: u32
+    },
     Clock,
     Dop {
         i_tow: u32,
@@ -316,6 +364,17 @@ impl Nav {
     pub fn from_bytes(b: &[u8]) -> Result<(&[u8], Self)> {
         let (b, msg) = read_u8(b)?;
         match msg {
+            0x03 => {
+                let x = pread_struct!(b => Self::Status {
+                    i_tow: u32,
+                    gps_fix: FixStatus,
+                    flags: BitFlags<StatusFlags>,
+                    fix_stat: u8,
+                    ttgg: u32,
+                    msss: u32,
+                });
+                Ok(x)
+            }
             0x22 => Ok((b, Nav::Clock)),
             0x04 => {
                 let b = tag(b, 18u16).map_invalid(Error::InvalidLen)?;

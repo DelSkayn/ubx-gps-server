@@ -16,6 +16,7 @@ mod parse;
 mod rtcm;
 mod server;
 mod ubx;
+mod ntrip;
 
 mod cmd;
 

@@ -137,9 +137,19 @@ impl_enum! {
 
 impl_enum! {
     pub enum Parity: u8{
-        None= 0,
+        None = 0,
         Odd = 1,
         Even = 2
+    }
+}
+
+impl_enum! {
+    pub enum OdoProfile: u8{
+        Run = 0,
+        Cycl = 1,
+        Swim = 2,
+        Car = 3,
+        Custom = 4
     }
 }
 
@@ -269,6 +279,16 @@ impl_value! {
         MsgoutUbxRxmRlmUsb(u8) = 0x20910261,
         MsgoutUbxRxmRtcmUsb(u8) = 0x2091026b,
         MsgoutUbxRxmSfrbxUsb(u8) = 0x20910234,
+
+        OdoUseOdo(bool) = 0x10220001,
+        OdoUseCog(bool) = 0x10220002,
+        OdoOutlpvel(bool) = 0x10220003,
+        OdoOutlpcog(bool) = 0x10220004,
+        OdoProfile(OdoProfile) = 0x20220005,
+        OdoCogmaxspeed(u8) = 0x20220021,
+        OdoCogmaxposacc(u8) = 0x20220022,
+        OdoVellpgain(u8) = 0x20220031,
+        OdoCoglpgain(u8) = 0x20220032,
 
         NavhpgDgnssmode(RtkMode) = 0x20140011,
 

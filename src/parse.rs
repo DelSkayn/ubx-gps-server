@@ -1,3 +1,4 @@
+use core::fmt;
 use std::result::Result as StdResult;
 
 pub mod ser_bitflags {
@@ -136,9 +137,24 @@ pub enum Error {
     InvalidClass(u8),
     InvalidMsg(u8),
     InvalidLen,
-    InvalidBitfield,
     Invalid,
 }
+
+impl fmt::Display for Error{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self{
+            Error::NotEnoughData => write!(f, "not enough data in buffer to parse structure"),
+            Error::InvalidChecksum => write!(f, "checksum is not valid"),
+            Error::InvalidHeader => write!(f, "header is not valid"),
+            Error::InvalidClass(x) => write!(f, "encountered unknown ubx message class `{}`",x),
+            Error::InvalidMsg(x) => write!(f, "encountered unknown ubx message id `{}`",x),
+            Error::InvalidLen => write!(f, "ubx message length is not as specified in spec"),
+            Error::Invalid => write!(f, "failed to parse buffer"),
+        }
+    }
+}
+
+impl std::error::Error for Error{ }
 
 pub type Result<T> = StdResult<T, Error>;
 

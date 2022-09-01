@@ -60,7 +60,7 @@ pub async fn set(data: &mut super::CmdData, value: &str) -> Result<()> {
             values: vals.into(),
         };
         debug!("config: {:?}", cfg);
-        let ack = data.device.config(cfg).await;
+        let ack = data.device.config(cfg).await?;
         let ack = ack.shared();
 
         loop {
@@ -73,7 +73,7 @@ pub async fn set(data: &mut super::CmdData, value: &str) -> Result<()> {
                     }
                 }
                 msg = data.device.read() => {
-                    msg.log();
+                    msg?.log();
                 }
             }
         }
@@ -87,11 +87,11 @@ async fn get(data: &mut super::CmdData, values: Vec<ValueKey>) -> Result<()> {
         layer: Layer::Ram,
         values,
     };
-    let ack = data.device.config(cfg).await;
+    let ack = data.device.config(cfg).await?;
     ack.await.ok();
 
     loop {
-        let msg = data.device.read().await;
+        let msg = data.device.read().await?;
         msg.log();
         if let GpsMsg::Ubx(ubx::Msg::Cfg(Cfg::ValGetRes { values, .. })) = msg {
             for v in values.iter() {

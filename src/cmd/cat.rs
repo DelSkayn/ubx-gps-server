@@ -10,7 +10,7 @@ pub fn subcmd<'help>() -> Command<'help> {
 pub async fn cmd(data: &mut super::CmdData, m: &ArgMatches) -> Result<()> {
     let pretty = *m.get_one::<bool>("pretty").unwrap();
     loop {
-        let msg = data.device.read().await;
+        let msg: crate::GpsMsg = data.device.read().await?;
         if pretty {
             println!("{}", serde_json::to_string_pretty(&msg).unwrap())
         } else {

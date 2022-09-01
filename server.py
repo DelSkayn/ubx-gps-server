@@ -2,6 +2,7 @@
 from socket import socket
 import json
 import sys
+import os
 
 if len(sys.argv) < 3:
     print("Enter a adress");
@@ -82,9 +83,8 @@ PATHS = [
 while True:
     msg = socket.next()
 
-    sig = lookup(msg, ['Ubx','Nav','Sig','blocks'])
+    sig = lookup(msg, ['Ubx','Nav','Eoe','blocks'])
     if sig is not None:
-        print(sum([b['cno'] for b in sig]) / len(sig))
     #print(msg)
     for p,f in filter(msg,PATHS):
         print(p,":",f)

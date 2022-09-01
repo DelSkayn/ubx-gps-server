@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use clap::{arg, value_parser, ArgMatches, Command};
+use futures::future::Either;
 use log::{info, warn};
 use tokio::{
     io::BufReader,
@@ -12,13 +13,14 @@ use tokio::{
 use crate::{
     rtcm::RtcmFrame,
     server::{Msg, StreamServer},
-    GpsMsg,
+    GpsMsg, ntrip,
 };
 
 use super::CmdData;
 
 pub fn subcmd<'help>() -> Command<'help> {
     Command::new("server")
+        .about("host a server")
         .arg(
             arg!(
                 -p --port <PORT> "Set the port to run the data server on"
@@ -35,13 +37,19 @@ pub fn subcmd<'help>() -> Command<'help> {
         )
         .arg(
             arg!(
+                -n --ntrip <ADDRESS> "The address of a ntrip caster to retrieve RTCM packets from"
+            )
+            .required(false),
+        )
+        .arg(
+            arg!(
                 [address] "The address to host the server on"
             )
             .required(false)
             .default_value("0.0.0.0"),
         )
         .arg(arg!(
-        -c --config <PATH> "Apply config file before running server"
+            -c --config <PATH> "Apply config file before running server"
         ))
 }
 
@@ -98,6 +106,12 @@ pub async fn cmd(data: &mut CmdData, arg: &ArgMatches) -> Result<()> {
         super::config::set(data, x).await?;
     }
 
+    let mut ntrip = if let Some(x) = arg.get_one::<String>("ntrip"){
+        Some(ntrip::Ntrip::connect(x.clone()).await?)
+    }else{
+        None
+    };
+
     let mut server = StreamServer::new((address.as_str(), *port), false)
         .await
         .context("failed to create server")?;
@@ -107,26 +121,41 @@ pub async fn cmd(data: &mut CmdData, arg: &ArgMatches) -> Result<()> {
         .map(|x| connect_rtcm(x.clone()));
 
     loop {
+        let ntrip_future = ntrip.as_mut().map(|x| Either::Left(x.resp())).unwrap_or_else(|| Either::Right(futures::future::pending::<Result<RtcmFrame<'static>>>()));
         if let Some(x) = rtcm_stream.as_mut() {
             tokio::select! {
                 msg = x.recv() => {
                     info!("rtcm msg: {:?}", msg);
-                    data.device.write(crate::GpsMsg::Rtcm(msg.expect("rtcm stream quit unexpectedly"))).await;
+                    data.device.write(crate::GpsMsg::Rtcm(msg.expect("rtcm stream quit unexpectedly"))).await?;
                 }
                 msg = data.device.read() => {
+                    let msg = msg?;
                     info!("msg: {:?}", msg);
                     server.send(&msg).await?;
                 }
-                _ = server.recv() => {}
+                msg = ntrip_future => {
+                    let msg = msg?;
+                    data.device.write(GpsMsg::Rtcm(msg)).await?;
+                }
+                msg = server.recv() => {
+                    data.device.write(msg).await?;
+                }
             }
         } else {
             tokio::select! {
                 msg = data.device.read() => {
+                    let msg = msg?;
                     msg.log();
                     info!("msg: {:?}", msg);
                     server.send(&msg).await?;
                 }
-                _ = server.recv() => {}
+                msg = ntrip_future => {
+                    let msg = msg?;
+                    data.device.write(GpsMsg::Rtcm(msg)).await?;
+                }
+                msg = server.recv() => {
+                    data.device.write(msg).await?;
+                }
             }
         }
     }

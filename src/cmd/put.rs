@@ -19,7 +19,7 @@ pub async fn cmd(data: &mut super::CmdData, m: &ArgMatches) -> Result<()> {
         .context("failed to parse command file")?;
 
     for cmd in commands{
-        data.device.write(cmd).await
+        data.device.write(cmd).await?;
     }
     Ok(())
 }
