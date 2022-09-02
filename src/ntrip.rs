@@ -1,5 +1,6 @@
-use hyper::{Client, Request, Body, body::HttpBody};
+use hyper::{Client, Request, Body, body::HttpBody, Uri};
 use anyhow::{Result, Context, bail, anyhow};
+use log::debug;
 
 use crate::{rtcm::RtcmFrame, parse};
 
@@ -11,22 +12,37 @@ pub struct Ntrip{
 
 impl Ntrip{
     pub async fn connect(addr: String) -> Result<Self>{
-        let client = Client::new();
+        let client = Client::builder()
+            .http09_responses(true)
+            // Ntrip casters do not seem to http1 complient as header cases are not case
+            // insensitive.
+            .http1_title_case_headers(true)
+            .build_http();
+
+        let uri: Uri = addr.try_into().context("failed to parse uri")?;
+        let mut host = uri.host().ok_or_else(|| anyhow!("uri missing host"))?.to_string();
+        if let Some(port) = uri.port(){
+            host = format!("{}:{}",host,port);
+        }
+
 
         let request = Request::builder()
             .method("GET")
-            .uri(addr)
+            .header("Host", host)
             .header("User-Agent","NTRIP gps/0.1")
             .header("Accept","*/*")
             .header("Ntrip-Version","Ntrip/2.0")
+            .uri(uri)
             .body(Body::empty())
             .context("failed to create request")?;
+
+        debug!("sending ntrip request {:?}",request);
 
         let resp = client.request(request)
             .await
             .context("failed to send request")?;
 
-        if resp.headers().get("Content-Type").and_then(|x| x.to_str().ok()) != Some("gnss/data"){
+        if dbg!(resp.headers().get("Content-Type").and_then(|x| x.to_str().ok())) != Some("gnss/data"){
             bail!("Ntrip caster did not return correct content type");
         }
 

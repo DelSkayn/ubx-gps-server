@@ -52,7 +52,9 @@ where
                     self.buffer.truncate(len - b);
                     return Ok(msg);
                 }
-                Err(parse::Error::InvalidLen) => {}
+                Err(parse::Error::NotEnoughData) => {
+                    self.extend_buffer().await?;
+                }
                 Err(e) => bail!(e),
             }
         }

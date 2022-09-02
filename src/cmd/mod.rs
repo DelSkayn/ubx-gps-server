@@ -2,16 +2,19 @@ use std::{pin::Pin, time::Duration};
 
 use anyhow::{Context, Result};
 use clap::{arg, value_parser, AppSettings, ArgAction, ArgGroup, Command};
-use tokio::{io::{AsyncRead, AsyncWrite}, net::TcpStream};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    net::TcpStream,
+};
 use tokio_serial::{DataBits, Parity, SerialStream, StopBits};
 
 use crate::device::GpsDevice;
 
 mod cat;
 mod config;
+mod proxy;
 mod put;
 mod server;
-mod proxy;
 
 pub struct CmdData {
     verbose: bool,
@@ -82,11 +85,14 @@ pub async fn run() -> Result<()> {
             arg!(
                 -s --serial <PATH> "Set the serial port"
             )
-            .required(false)
+            .required(false),
         )
-        .arg(arg!(
-            -i --ip <ADDRESS> "The ip port to connect to"
-        ))
+        .arg(
+            arg!(
+                -i --ip <ADDRESS> "The ip port to connect to"
+            )
+            .required(false),
+        )
         .group(
             ArgGroup::new("device")
                 .required(false)
@@ -101,12 +107,6 @@ pub async fn run() -> Result<()> {
             .default_value("9600")
             .value_parser(value_parser!(u32)),
         )
-        .arg(
-            arg!(
-            -c --config <CONFIG> "apply the settings from a config file to the device"
-            )
-            .required(false),
-        )
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .subcommand(config::subcmd())
         .subcommand(cat::subcmd())
@@ -117,12 +117,15 @@ pub async fn run() -> Result<()> {
 
     let verbose = *matches.get_one::<bool>("verbose").unwrap();
 
-    let mut device = if let Some(ip_addr) = matches.get_one::<String>("ip"){
+    let mut device = if let Some(ip_addr) = matches.get_one::<String>("ip") {
         let stream = TcpStream::connect(ip_addr).await?;
 
         GpsDevice::new(DeviceType::Net(stream))
-    }else{
-        let port_path = matches.get_one::<String>("serial").cloned().unwrap_or_else(|| "/dev/ttyACM0".to_string());
+    } else {
+        let port_path = matches
+            .get_one::<String>("serial")
+            .cloned()
+            .unwrap_or_else(|| "/dev/ttyACM0".to_string());
         let port_baud = *matches.get_one::<u32>("baud").unwrap();
         let port = tokio_serial::new(port_path, port_baud)
             .data_bits(DataBits::Eight)

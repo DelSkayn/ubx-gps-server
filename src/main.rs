@@ -31,7 +31,9 @@ pub enum GpsMsg<'a> {
 
 impl<'a> GpsMsg<'a> {
     pub fn from_bytes(b: &'a [u8]) -> parse::Result<(Self, usize)> {
-        if ubx::Msg::valid_prefix(b) {
+        if b.is_empty(){
+            Err(Error::NotEnoughData)
+        }else if ubx::Msg::valid_prefix(b) {
             Msg::from_bytes(b).map(|x| (GpsMsg::Ubx(x.0), x.1))
         } else if RtcmFrame::valid_prefix(b) {
             RtcmFrame::from_bytes(b).map(|x| (GpsMsg::Rtcm(x.0), x.1))

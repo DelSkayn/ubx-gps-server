@@ -145,6 +145,25 @@ impl StreamServer {
 
     pub async fn recv(&mut self) -> GpsMsg<'static> {
         loop {
+            if self.connections.is_empty(){
+                let accept = match self.listener.accept().await {
+                    Ok(x) => x,
+                    Err(e) => {
+                        error!("error accepting connection `{}`",e);
+                        continue;
+                    }
+                };
+                let (incomming,addr) = accept;
+                info!("recieved connection from {}", addr);
+                self.connections.push(Connection{
+                    stream: incomming,
+                    read_buffer: [0u8; 256],
+                    buffer: Vec::new(),
+                });
+                continue;
+            }
+
+
             let msg = {
                 let recv_future = futures::future::select_all(self.connections.iter_mut().enumerate().map(|(idx,x)| x.read().map(move |x| (idx,x)).boxed()));
                 let accept_future = self.listener.accept();

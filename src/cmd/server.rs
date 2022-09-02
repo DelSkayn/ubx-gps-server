@@ -11,9 +11,10 @@ use tokio::{
 };
 
 use crate::{
+    ntrip,
     rtcm::RtcmFrame,
     server::{Msg, StreamServer},
-    GpsMsg, ntrip,
+    GpsMsg,
 };
 
 use super::CmdData;
@@ -48,9 +49,12 @@ pub fn subcmd<'help>() -> Command<'help> {
             .required(false)
             .default_value("0.0.0.0"),
         )
-        .arg(arg!(
-            -c --config <PATH> "Apply config file before running server"
-        ))
+        .arg(
+            arg!(
+                -c --config <PATH> "Apply config file before running server"
+            )
+            .required(false),
+        )
 }
 
 pub async fn rtcm_stream(stream: TcpStream, send: &mpsc::Sender<RtcmFrame<'static>>) -> Result<()> {
@@ -103,12 +107,17 @@ pub async fn cmd(data: &mut CmdData, arg: &ArgMatches) -> Result<()> {
 
     if let Some(x) = arg.get_one::<String>("config") {
         info!("applying config");
-        super::config::set(data, x).await?;
+        super::config::set(data, x).await
+            .context("failed to apply config")?;
     }
 
-    let mut ntrip = if let Some(x) = arg.get_one::<String>("ntrip"){
-        Some(ntrip::Ntrip::connect(x.clone()).await?)
-    }else{
+    let mut ntrip = if let Some(x) = arg.get_one::<String>("ntrip") {
+        Some(
+            ntrip::Ntrip::connect(x.clone())
+                .await
+                .context("Failed to connect to ntrip server")?,
+        )
+    } else {
         None
     };
 
@@ -121,7 +130,13 @@ pub async fn cmd(data: &mut CmdData, arg: &ArgMatches) -> Result<()> {
         .map(|x| connect_rtcm(x.clone()));
 
     loop {
-        let ntrip_future = ntrip.as_mut().map(|x| Either::Left(x.resp())).unwrap_or_else(|| Either::Right(futures::future::pending::<Result<RtcmFrame<'static>>>()));
+        let ntrip_future = ntrip
+            .as_mut()
+            .map(|x| Either::Left(x.resp()))
+            .unwrap_or_else(|| {
+                Either::Right(futures::future::pending::<Result<RtcmFrame<'static>>>())
+            });
+
         if let Some(x) = rtcm_stream.as_mut() {
             tokio::select! {
                 msg = x.recv() => {
