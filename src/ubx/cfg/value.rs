@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     impl_bitfield, impl_enum,
-    parse::{read_u32, Error, ParseData, Result, ser_bitflags},
+    parse::{read_u32, ser_bitflags, Error, ParseData, Result},
 };
 
 use clap::ValueEnum;
@@ -21,13 +21,12 @@ pub enum MsgMask {
 
 impl_bitfield!(MsgMask);
 
-impl_enum!{
+impl_enum! {
     pub enum RtkFix: u8{
         RtkFloat = 2,
         RtkFixed = 3
     }
 }
-
 
 macro_rules! impl_value{
     (
@@ -102,7 +101,6 @@ impl_enum! {
         Fixed = 3
     }
 }
-
 
 impl_enum! {
     pub enum Tmode: u8{

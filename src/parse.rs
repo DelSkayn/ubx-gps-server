@@ -85,7 +85,6 @@ macro_rules! impl_struct{
     };
 }
 
-
 #[macro_export]
 macro_rules! impl_bitfield {
     ($name:ty) => {
@@ -140,21 +139,21 @@ pub enum Error {
     Invalid,
 }
 
-impl fmt::Display for Error{
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self{
+        match *self {
             Error::NotEnoughData => write!(f, "not enough data in buffer to parse structure"),
             Error::InvalidChecksum => write!(f, "checksum is not valid"),
             Error::InvalidHeader => write!(f, "header is not valid"),
-            Error::InvalidClass(x) => write!(f, "encountered unknown ubx message class `{}`",x),
-            Error::InvalidMsg(x) => write!(f, "encountered unknown ubx message id `{}`",x),
+            Error::InvalidClass(x) => write!(f, "encountered unknown ubx message class `{}`", x),
+            Error::InvalidMsg(x) => write!(f, "encountered unknown ubx message id `{}`", x),
             Error::InvalidLen => write!(f, "ubx message length is not as specified in spec"),
             Error::Invalid => write!(f, "failed to parse buffer"),
         }
     }
 }
 
-impl std::error::Error for Error{ }
+impl std::error::Error for Error {}
 
 pub type Result<T> = StdResult<T, Error>;
 

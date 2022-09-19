@@ -17,6 +17,12 @@ pub enum FixType {
     Reserved(u8),
 }
 
+impl Default for FixType{
+    fn default() -> Self{
+        FixType::NoFix
+    }
+}
+
 impl ParseData for FixType {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
         let (b, d) = u8::parse_read(b)?;
@@ -29,7 +35,7 @@ impl ParseData for FixType {
             5 => Self::Time,
             x => Self::Reserved(x),
         };
-        Ok((b,res))
+        Ok((b, res))
     }
 
     fn parse_write(self, b: &mut Vec<u8>) {
@@ -83,6 +89,13 @@ pub enum PsmState {
     Inactive = 5,
 }
 
+
+impl Default for PsmState{
+    fn default() -> Self{
+        PsmState::NotActive
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CarrierPhaseSol {
     NoSolution = 0,
@@ -90,7 +103,13 @@ pub enum CarrierPhaseSol {
     Fixed = 2,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+impl Default for CarrierPhaseSol{
+    fn default() -> Self{
+        CarrierPhaseSol::NoSolution
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct FixStatus {
     car_sol: CarrierPhaseSol,
     head_veh_valid: bool,
@@ -144,7 +163,7 @@ impl ParseData for FixStatus {
 
 impl_bitfield!(RelFlags);
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Satellite {
     gnss_id: u8,
     sv_id: u8,
@@ -175,7 +194,7 @@ impl_struct! {
 #[bitflags]
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum StatusFlags{
+pub enum StatusFlags {
     GpsFixOk = 0b0001,
     DiffSoln = 0b0010,
     WknSet = 0b0100,
@@ -187,180 +206,349 @@ impl_bitfield!(StatusFlags);
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Nav {
     Status {
+        #[serde(default)]
         i_tow: u32,
+        #[serde(default)]
         gps_fix: FixStatus,
+        #[serde(default)]
         flags: BitFlags<StatusFlags>,
+        #[serde(default)]
         fix_stat: u8,
+        #[serde(default)]
         ttgg: u32,
-        msss: u32
+        #[serde(default)]
+        msss: u32,
     },
-    Clock,
-    Dop {
+    Clock {
+        #[serde(default)]
         i_tow: u32,
+        #[serde(default)]
+        clk_b: i32,
+        #[serde(default)]
+        clk_d: i32,
+        #[serde(default)]
+        t_acc: u32,
+        #[serde(default)]
+        f_acc: u32,
+    },
+    Dop {
+        #[serde(default)]
+        i_tow: u32,
+        #[serde(default)]
         g_dop: u16,
+        #[serde(default)]
         p_dop: u16,
+        #[serde(default)]
         t_dop: u16,
+        #[serde(default)]
         v_dop: u16,
+        #[serde(default)]
         h_dop: u16,
+        #[serde(default)]
         n_dop: u16,
+        #[serde(default)]
         e_dop: u16,
     },
     Eoe {
+        #[serde(default)]
         i_tow: u32,
     },
     Geofence,
     HPPOSecef {
+        #[serde(default)]
         version: u8,
+        #[serde(default)]
         i_tow: u32,
+        #[serde(default)]
         ecef_x: i32,
+        #[serde(default)]
         ecef_y: i32,
+        #[serde(default)]
         ecef_z: i32,
 
+        #[serde(default)]
         ecef_x_hp: i8,
+        #[serde(default)]
         ecef_y_hp: i8,
+        #[serde(default)]
         ecef_z_hp: i8,
-
+        #[serde(default)]
         flags: u8,
+        #[serde(default)]
         p_acc: u32,
     },
     HPPOSllh {
+        #[serde(default)]
         version: u8,
+        #[serde(default)]
         flags: u8,
+        #[serde(default)]
         i_tow: u32,
+        #[serde(default)]
         lon: i32,
+        #[serde(default)]
         lat: i32,
+        #[serde(default)]
         height: i32,
+        #[serde(default)]
         height_sea: i32,
+        #[serde(default)]
         lon_hp: i8,
+        #[serde(default)]
         lat_hp: i8,
+        #[serde(default)]
         height_hp: i8,
+        #[serde(default)]
         height_sea_hp: i8,
+        #[serde(default)]
         h_acc: i32,
+        #[serde(default)]
         v_acc: i32,
     },
     Posecef {
+        #[serde(default)]
         i_tow: u32,
+        #[serde(default)]
         ecef_x: i32,
+        #[serde(default)]
         ecef_y: i32,
+        #[serde(default)]
         ecef_z: i32,
+        #[serde(default)]
         p_acc: u32,
     },
     Pvt {
+        #[serde(default)]
         i_tow: u32,
+        #[serde(default)]
         year: u16,
+        #[serde(default)]
         month: u8,
+        #[serde(default)]
         day: u8,
+        #[serde(default)]
         hour: u8,
+        #[serde(default)]
         min: u8,
+        #[serde(default)]
         sec: u8,
-        #[serde(with = "ser_bitflags")]
+        #[serde(with = "ser_bitflags", default)]
         valid: BitFlags<Valid>,
+        #[serde(default)]
         t_acc: u32,
+        #[serde(default)]
         nano: i32,
+        #[serde(default)]
         fix_type: FixType,
+        #[serde(default)]
         flags: FixStatus,
+        #[serde(default)]
         flags2: u8,
+        #[serde(default)]
         numsv: u8,
+        #[serde(default)]
         lon: i32,
+        #[serde(default)]
         lat: i32,
+        #[serde(default)]
         height: i32,
+        #[serde(default)]
         height_sea: i32,
+        #[serde(default)]
         h_acc: u32,
+        #[serde(default)]
         v_acc: u32,
+        #[serde(default)]
         vel_n: i32,
+        #[serde(default)]
         vel_e: i32,
+        #[serde(default)]
         vel_d: i32,
+        #[serde(default)]
         g_speed: i32,
+        #[serde(default)]
         heading_mot: i32,
+        #[serde(default)]
         s_acc: u32,
+        #[serde(default)]
         head_acc: u32,
+        #[serde(default)]
         p_dop: u16,
+        #[serde(default)]
         flags3: u8,
+        #[serde(default)]
         _reserved: u32,
+        #[serde(default)]
         _reserved_ext: u8,
+        #[serde(default)]
         head_veh: i32,
+        #[serde(default)]
         mag_dec: i16,
+        #[serde(default)]
         mag_acc: u16,
     },
     RelPosNed {
+        #[serde(default)]
         version: u8,
+        #[serde(default)]
         ref_station_id: u16,
+        #[serde(default)]
         i_tow: u32,
+        #[serde(default)]
         rel_pos_n: i32,
+        #[serde(default)]
         rel_pos_e: i32,
+        #[serde(default)]
         rel_pos_d: i32,
+        #[serde(default)]
         rel_pos_length: i32,
+        #[serde(default)]
         rel_pos_heading: i32,
+        #[serde(default)]
         rel_pos_n_hp: i8,
+        #[serde(default)]
         rel_pos_e_hp: i8,
+        #[serde(default)]
         rel_pos_d_hp: i8,
+        #[serde(default)]
         rel_pos_length_hp: i8,
+        #[serde(default)]
         acc_n: i32,
+        #[serde(default)]
         acc_e: i32,
+        #[serde(default)]
         acc_d: i32,
+        #[serde(default)]
         acc_length: i32,
+        #[serde(default)]
         acc_heading: i32,
-        #[serde(with = "ser_bitflags")]
+        #[serde(with = "ser_bitflags", default)]
         flags: BitFlags<RelFlags>,
     },
     Sat {
+        #[serde(default)]
         i_tow: u32,
+        #[serde(default)]
         version: u8,
+        #[serde(default)]
         num_sat: u8,
+        #[serde(default)]
         sats: Vec<Satellite>,
     },
     Svin {
+        #[serde(default)]
         version: u8,
+        #[serde(default)]
         i_tow: u32,
+        #[serde(default)]
         dur: u32,
+        #[serde(default)]
         mean_x: i32,
+        #[serde(default)]
         mean_y: i32,
+        #[serde(default)]
         mean_z: i32,
+        #[serde(default)]
         mean_xhp: i8,
+        #[serde(default)]
         mean_yhp: i8,
+        #[serde(default)]
         mean_zhp: i8,
+        #[serde(default)]
         mean_acc: u32,
+        #[serde(default)]
         obs: u32,
+        #[serde(default)]
         valid: u8,
+        #[serde(default)]
         active: u8,
     },
     Sig {
+        #[serde(default)]
         i_tow: u32,
+        #[serde(default)]
         version: u8,
+        #[serde(default)]
         num_sigs: u8,
+        #[serde(default)]
         res: [u8; 2],
+        #[serde(default)]
         blocks: Vec<SigBlock>,
     },
     TimeGps {
+        #[serde(default)]
         i_tow: u32,
+        #[serde(default)]
         ftow: i32,
+        #[serde(default)]
         week: i16,
+        #[serde(default)]
         leap_seconds: i8,
+        #[serde(default)]
         valid: u8,
+        #[serde(default)]
         t_acc: u32,
     },
     TimeLs {
+        #[serde(default)]
         i_tow: u32,
+        #[serde(default)]
         version: u8,
+        #[serde(default)]
         src_of_cur_ls: u8,
+        #[serde(default)]
         cur_ls: i8,
+        #[serde(default)]
         src_of_ls_change: u8,
+        #[serde(default)]
         ls_change: i8,
+        #[serde(default)]
         time_to_ls_event: i32,
+        #[serde(default)]
         dat_of_ls_gps_wn: u16,
+        #[serde(default)]
         dat_of_ls_gps_dn: u16,
+        #[serde(default)]
         valid: u8,
     },
     Velecef {
+        #[serde(default)]
         i_tow: u32,
+        #[serde(default)]
         ecef_v_x: i32,
+        #[serde(default)]
         ecef_v_y: i32,
+        #[serde(default)]
         ecef_v_z: i32,
+        #[serde(default)]
         s_acc: u32,
     },
 }
 
 impl Nav {
+    pub fn write_bytes(&self, b: &mut Vec<u8>) {
+        let id: u8 = match *self {
+            Self::Status { .. } => 0x03,
+            Self::Clock { .. } => 0x22,
+            Self::Dop { .. } => 0x04,
+            Self::Eoe { .. } => 0x61,
+            Self::Geofence { .. } => 0x39,
+            Self::HPPOSecef { .. } => 0x13,
+            Self::Sig { .. } => 0x43,
+            Self::HPPOSllh { .. } => 0x14,
+            Self::Posecef { .. } => 0x01,
+            Self::Pvt { .. } => 0x07,
+            Self::RelPosNed { .. } => 0x3c,
+            Self::Sat { .. } => 0x35,
+            Self::Svin { .. } => 0x3b,
+            Self::TimeLs { .. } => 0x26,
+            Self::TimeGps { .. } => 0x20,
+            Self::Velecef { .. } => 0x11,
+        };
+        id.parse_write(b);
+        0u16.parse_write(b);
+    }
+
     pub fn from_bytes(b: &[u8]) -> Result<(&[u8], Self)> {
         let (b, msg) = read_u8(b)?;
         match msg {
@@ -375,7 +563,17 @@ impl Nav {
                 });
                 Ok(x)
             }
-            0x22 => Ok((b, Nav::Clock)),
+            0x22 => {
+                let b = tag(b, 20u16).map_invalid(Error::InvalidLen)?;
+                let res = pread_struct!(b => Nav::Clock{
+                    i_tow: u32,
+                    clk_b: i32,
+                    clk_d: i32,
+                    t_acc:  u32,
+                    f_acc: u32,
+                });
+                Ok(res)
+            }
             0x04 => {
                 let b = tag(b, 18u16).map_invalid(Error::InvalidLen)?;
                 pread!(b => {

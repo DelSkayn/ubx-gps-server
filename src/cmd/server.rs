@@ -107,7 +107,8 @@ pub async fn cmd(data: &mut CmdData, arg: &ArgMatches) -> Result<()> {
 
     if let Some(x) = arg.get_one::<String>("config") {
         info!("applying config");
-        super::config::set(data, x).await
+        super::config::set(data, x)
+            .await
             .context("failed to apply config")?;
     }
 
@@ -169,6 +170,7 @@ pub async fn cmd(data: &mut CmdData, arg: &ArgMatches) -> Result<()> {
                     data.device.write(GpsMsg::Rtcm(msg)).await?;
                 }
                 msg = server.recv() => {
+                    info!("recv msg: {:?}",msg);
                     data.device.write(msg).await?;
                 }
             }

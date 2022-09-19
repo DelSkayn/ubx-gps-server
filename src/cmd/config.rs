@@ -50,7 +50,8 @@ pub async fn cmd(data: &mut super::CmdData, matches: &ArgMatches) -> Result<()> 
 }
 
 pub async fn set(data: &mut super::CmdData, value: &str) -> Result<()> {
-    let file = fs::read(value).await
+    let file = fs::read(value)
+        .await
         .context("failed to read config file")?;
     let values: Vec<Value> = serde_json::from_slice(&file).context("failed to parse config")?;
 
@@ -61,7 +62,10 @@ pub async fn set(data: &mut super::CmdData, value: &str) -> Result<()> {
             values: vals.into(),
         };
         debug!("config: {:?}", cfg);
-        let ack = data.device.config(cfg).await
+        let ack = data
+            .device
+            .config(cfg)
+            .await
             .context("could not write config to device")?;
         let ack = ack.shared();
 

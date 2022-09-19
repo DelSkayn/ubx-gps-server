@@ -1,9 +1,8 @@
-
 use std::borrow::Cow;
 
 use anyhow::Result;
-use futures::{FutureExt, future::Either};
-use log::{info, warn, error};
+use futures::{future::Either, FutureExt};
+use log::{error, info, warn};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream, ToSocketAddrs},
@@ -46,32 +45,31 @@ impl<'a> Msg<'a> {
     }
 }
 
-pub struct Connection{
+pub struct Connection {
     stream: TcpStream,
     read_buffer: [u8; 256],
     buffer: Vec<u8>,
 }
 
-impl Connection{
-
-    async fn read_raw(&mut self) -> Result<Vec<u8>>{
+impl Connection {
+    async fn read_raw(&mut self) -> Result<Vec<u8>> {
         let len = self.stream.read(&mut self.read_buffer).await?;
         let mut buffer = Vec::new();
         buffer.extend_from_slice(&self.read_buffer[..len]);
         Ok(buffer)
     }
 
-    async fn read(&mut self) -> Result<()>{
+    async fn read(&mut self) -> Result<()> {
         let len = self.stream.read(&mut self.read_buffer).await?;
         self.buffer.extend_from_slice(&self.read_buffer[..len]);
         Ok(())
     }
 
-    fn read_msg(&mut self) -> Option<GpsMsg<'static>>{
-        let (msg,size) = GpsMsg::from_bytes(&self.buffer).ok()?;
+    fn read_msg(&mut self) -> Option<GpsMsg<'static>> {
+        let (msg, size) = GpsMsg::from_bytes(&self.buffer).ok()?;
         let msg = msg.into_owned();
         let len = self.buffer.len();
-        self.buffer.copy_within(size..,0);
+        self.buffer.copy_within(size.., 0);
         self.buffer.truncate(len - size);
         Some(msg)
     }
@@ -93,27 +91,29 @@ impl StreamServer {
         })
     }
 
-
     pub async fn recv_raw(&mut self) -> Vec<u8> {
         loop {
             let msg = {
-                let recv_future = futures::future::select_all(self.connections.iter_mut().enumerate().map(|(idx,x)| x.read_raw().map(move |x| (idx,x)).boxed()));
+                let recv_future = futures::future::select_all(
+                    self.connections
+                        .iter_mut()
+                        .enumerate()
+                        .map(|(idx, x)| x.read_raw().map(move |x| (idx, x)).boxed()),
+                );
                 let accept_future = self.listener.accept();
-                match futures::future::select(recv_future,accept_future.boxed()).await{
-                    Either::Left((msg,_)) => {
-                        let (msg,_,_) = msg;
+                match futures::future::select(recv_future, accept_future.boxed()).await {
+                    Either::Left((msg, _)) => {
+                        let (msg, _, _) = msg;
                         Either::Left(msg)
                     }
-                    Either::Right((accept,_)) => {
-                        Either::Right(accept)
-                    }
+                    Either::Right((accept, _)) => Either::Right(accept),
                 }
             };
 
-            match msg{
+            match msg {
                 Either::Left(msg) => {
-                    let (idx,msg) = msg;
-                    match msg{
+                    let (idx, msg) = msg;
+                    match msg {
                         Err(e) => {
                             warn!("connection error: {:?}", e);
                             self.connections.swap_remove(idx);
@@ -124,16 +124,16 @@ impl StreamServer {
                     }
                 }
                 Either::Right(accept) => {
-                    let accept = match accept{
+                    let accept = match accept {
                         Ok(x) => x,
                         Err(e) => {
-                            error!("error accepting connection `{}`",e);
+                            error!("error accepting connection `{}`", e);
                             continue;
                         }
                     };
-                    let (incomming,addr) = accept;
+                    let (incomming, addr) = accept;
                     info!("recieved connection from {}", addr);
-                    self.connections.push(Connection{
+                    self.connections.push(Connection {
                         stream: incomming,
                         read_buffer: [0u8; 256],
                         buffer: Vec::new(),
@@ -145,17 +145,17 @@ impl StreamServer {
 
     pub async fn recv(&mut self) -> GpsMsg<'static> {
         loop {
-            if self.connections.is_empty(){
+            if self.connections.is_empty() {
                 let accept = match self.listener.accept().await {
                     Ok(x) => x,
                     Err(e) => {
-                        error!("error accepting connection `{}`",e);
+                        error!("error accepting connection `{}`", e);
                         continue;
                     }
                 };
-                let (incomming,addr) = accept;
+                let (incomming, addr) = accept;
                 info!("recieved connection from {}", addr);
-                self.connections.push(Connection{
+                self.connections.push(Connection {
                     stream: incomming,
                     read_buffer: [0u8; 256],
                     buffer: Vec::new(),
@@ -163,43 +163,45 @@ impl StreamServer {
                 continue;
             }
 
-
             let msg = {
-                let recv_future = futures::future::select_all(self.connections.iter_mut().enumerate().map(|(idx,x)| x.read().map(move |x| (idx,x)).boxed()));
+                let recv_future = futures::future::select_all(
+                    self.connections
+                        .iter_mut()
+                        .enumerate()
+                        .map(|(idx, x)| x.read().map(move |x| (idx, x)).boxed()),
+                );
                 let accept_future = self.listener.accept();
 
-                match futures::future::select(recv_future,accept_future.boxed()).await{
-                    Either::Left((msg,_)) => {
-                        let (msg,_,_) = msg;
+                match futures::future::select(recv_future, accept_future.boxed()).await {
+                    Either::Left((msg, _)) => {
+                        let (msg, _, _) = msg;
                         Either::Left(msg)
                     }
-                    Either::Right((accept,_)) => {
-                        Either::Right(accept)
-                    }
+                    Either::Right((accept, _)) => Either::Right(accept),
                 }
             };
 
-            match msg{
+            match msg {
                 Either::Left(msg) => {
-                    let (idx,msg) = msg;
-                    if let Err(e) = msg{
+                    let (idx, msg) = msg;
+                    if let Err(e) = msg {
                         warn!("connection error: {:?}", e);
                         self.connections.swap_remove(idx);
-                    }else if let Some(x) = self.connections[idx].read_msg(){
-                        return x
+                    } else if let Some(x) = self.connections[idx].read_msg() {
+                        return x;
                     }
                 }
                 Either::Right(accept) => {
-                    let accept = match accept{
+                    let accept = match accept {
                         Ok(x) => x,
                         Err(e) => {
-                            error!("error accepting connection `{}`",e);
+                            error!("error accepting connection `{}`", e);
                             continue;
                         }
                     };
-                    let (incomming,addr) = accept;
+                    let (incomming, addr) = accept;
                     info!("recieved connection from {}", addr);
-                    self.connections.push(Connection{
+                    self.connections.push(Connection {
                         stream: incomming,
                         read_buffer: [0u8; 256],
                         buffer: Vec::new(),

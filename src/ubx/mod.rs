@@ -21,7 +21,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::parse::{read_u8, tag, Error, Offset, Result, ResultExt};
 
-
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Msg {
     Nav(Nav),
@@ -144,7 +143,10 @@ impl Msg {
         let (_, checksum_b) = read_u8(b)?;
 
         if ck_a != checksum_a || ck_b != checksum_b {
-            error!("invalid checksum {} != {} || {} != {}\n{:?}", ck_a, checksum_a, ck_b, checksum_b, this);
+            error!(
+                "invalid checksum {} != {} || {} != {}\n{:?}",
+                ck_a, checksum_a, ck_b, checksum_b, this
+            );
             return Err(Error::InvalidChecksum);
         }
 

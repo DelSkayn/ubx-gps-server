@@ -4,11 +4,7 @@ use tokio::{
     sync::{oneshot, Semaphore},
 };
 
-use crate::{
-    parse,
-    ubx,
-    GpsMsg,
-};
+use crate::{parse, ubx, GpsMsg};
 
 pub struct GpsDevice<F> {
     stream: F,
@@ -68,7 +64,7 @@ where
     }
 
     pub async fn read(&mut self) -> Result<GpsMsg<'static>> {
-        if let Some(&(id,_)) = self.pending_ack.as_ref() {
+        if let Some(&(id, _)) = self.pending_ack.as_ref() {
             match self.read_raw().await? {
                 GpsMsg::Ubx(ubx::Msg::Ack(ubx::Ack::Ack { msg_id, cls_id })) => {
                     if msg_id == id {

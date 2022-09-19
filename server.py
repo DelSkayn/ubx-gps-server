@@ -3,6 +3,7 @@ from socket import socket
 import json
 import sys
 import os
+import time
 
 if len(sys.argv) < 3:
     print("Enter a adress");
@@ -64,27 +65,31 @@ def filter(dict,paths):
 
 PATHS = [
     #['Ubx','Nav','Svin'],
-    ['Ubx','Mon','Rf','blocks','0','ant_status'],
-    ['Ubx','Mon','Rf','blocks','0','ant_power'],
-    ['Ubx','Mon','Rf','blocks','0','noise_per_ms'],
-    ['Ubx','Mon','Rf','blocks','1','ant_status'],
-    ['Ubx','Mon','Rf','blocks','1','ant_power'],
-    ['Ubx','Mon','Rf','blocks','1','noise_per_ms'],
-    ['Ubx','Nav','Pvt','flags','car_sol'],
-    ['Ubx','Nav','Pvt','flags','diff_soln'],
-    ['Ubx','Nav','Pvt','s_acc'],
-    ['Ubx','Nav','Pvt','v_acc'],
+    #['Ubx','Mon','Rf','blocks','0','ant_status'],
+    #['Ubx','Mon','Rf','blocks','0','ant_power'],
+    #['Ubx','Mon','Rf','blocks','0','noise_per_ms'],
+    #['Ubx','Mon','Rf','blocks','1','ant_status'],
+    #['Ubx','Mon','Rf','blocks','1','ant_power'],
+    #['Ubx','Mon','Rf','blocks','1','noise_per_ms'],
+    #['Ubx','Nav','Pvt','flags','car_sol'],
+    #['Ubx','Nav','Pvt','flags','diff_soln'],
+    #['Ubx','Nav','Pvt','s_acc'],
+    #['Ubx','Nav','Pvt','v_acc'],
+    #['Ubx','Mon','Comms','blocks','3'],
     #['Ubx','Nav','HPPOSecef'],
-    ['Ubx','Nav','HPPOSecef','p_acc'],
-    ['Ubx','Nav','RelPosNed'],
-    ['Ubx','Rxm','Rtcm','msg_type'],
+    #['Ubx','Nav','HPPOSecef','p_acc'],
+    ['Ubx','Nav','RelPosNed','i_tow'],
+    #['Ubx','Nav','RelPosNed','flags'],
+    #['Ubx','Nav','RelPosNed','rel_pos_n'],
+    #['Ubx','Nav','RelPosNed','rel_pos_e'],
+    #['Ubx','Nav','RelPosNed','acc_n'],
+    #['Ubx','Nav','RelPosNed','acc_e'],
+    #['Ubx','Rxm','Rtcm','msg_type'],
 ]
 
 while True:
     msg = socket.next()
+    stamp = time.time()
 
-    sig = lookup(msg, ['Ubx','Nav','Eoe','blocks'])
-    if sig is not None:
-    #print(msg)
     for p,f in filter(msg,PATHS):
-        print(p,":",f)
+        print(stamp,p,":",f)

@@ -1,40 +1,63 @@
 [
   {"kind": "usb-outprot-nmea", "value":false},
   {"kind": "usb-outprot-rtcm3x", "value":true},
-  {"kind": "rate-meas", "value": 1000},
+
+  {"kind": "rate-meas", "value": 250},
 
   { "kind": "spi-outprot-ubx", "value": false },
   { "kind": "spi-outprot-nmea", "value":false }, 
   { "kind": "spi-outprot-rtcm3x", "value":false }, 
+
   { "kind": "uart1-outprot-ubx", "value":false }, 
   { "kind": "uart1-outprot-nmea", "value":false }, 
   { "kind": "uart1-outprot-rtcm3x", "value":false },
+
   { "kind": "uart2-outprot-ubx", "value":false }, 
   { "kind": "uart2-outprot-nmea", "value":false }, 
   { "kind": "uart2-outprot-rtcm3x", "value":false },
 
-  { "kind": "tmode-mode", "value":"SurveyIn"},
-  { "kind": "tmode-svin-acc-limit", "value":3001 },
+  { "kind": "tmode-mode", "value":"Disabled"},
 
   { "kind": "infmsg-ubx-usb", "value":[
     "Error","Warning","Notice","Test","Debug"
   ]},
 
-  { "kind": "msgout-ubx-nav-pvt-usb", "value":0 },
-  { "kind": "msgout-ubx-nav-eoe-usb", "value":1 },
-  { "kind": "msgout-ubx-rxm-rtcm-usb", "value":1 },
-  { "kind": "msgout-ubx-mon-comms-usb", "value":1},
-  { "kind": "msgout-ubx-mon-rf-usb", "value":0},
-  { "kind": "msgout-ubx-nav-sig-usb", "value":1},
-  { "kind": "msgout-ubx-nav-sat-usb", "value":0},
-  { "kind": "msgout-ubx-nav-svin-usb", "value":1},
+  { "kind": "signal-gps-ena", "value": true },
+  { "kind": "signal-gps-l1ca-ena", "value": true },
+  { "kind": "signal-gps-l2c-ena", "value": true },
 
-  { "kind": "msgout-rtcm3x-type1005-usb", "value":1 },
+  { "kind": "signal-gal-ena", "value": false },
+  { "kind": "signal-gal-e1-ena", "value": false },
+  { "kind": "signal-gal-e5b-ena", "value": false },
+
+  { "kind": "signal-bds-ena", "value": false },
+  { "kind": "signal-bds-b1-ena", "value": false },
+  { "kind": "signal-bds-b2-ena", "value": false },
+
+  { "kind": "signal-qzss-ena", "value": false },
+  { "kind": "signal-qzss-l1ca-ena", "value": false },
+  { "kind": "signal-qzss-l2c-ena", "value": false },
+
+  { "kind": "signal-glo-ena", "value": false },
+  { "kind": "signal-glo-l1-ena", "value": false },
+  { "kind": "signal-glo-l2-ena", "value": false },
+
+  { "kind": "msgout-ubx-nav-pvt-usb", "value":1 },
+  { "kind": "msgout-ubx-nav-eoe-usb", "value":0 },
+  { "kind": "msgout-ubx-rxm-rtcm-usb", "value":0 },
+  { "kind": "msgout-ubx-mon-comms-usb", "value":0},
+  { "kind": "msgout-ubx-mon-rf-usb", "value":0},
+  { "kind": "msgout-ubx-nav-sig-usb", "value":0},
+  { "kind": "msgout-ubx-nav-sat-usb", "value":0},
+  { "kind": "msgout-ubx-nav-svin-usb", "value":0},
+
+  { "kind": "msgout-rtcm3x-type1005-usb", "value":0 },
   { "kind": "msgout-rtcm3x-type1074-usb", "value":1 },
-  { "kind": "msgout-rtcm3x-type1084-usb", "value":1 },
-  { "kind": "msgout-rtcm3x-type1094-usb", "value":1 },
-  { "kind": "msgout-rtcm3x-type1124-usb", "value":1 },
-  { "kind": "msgout-rtcm3x-type1230-usb", "value":5 },
+  { "kind": "msgout-rtcm3x-type1077-usb", "value":1 },
+  { "kind": "msgout-rtcm3x-type1084-usb", "value":0 },
+  { "kind": "msgout-rtcm3x-type1094-usb", "value":0 },
+  { "kind": "msgout-rtcm3x-type1124-usb", "value":0 },
+  { "kind": "msgout-rtcm3x-type1230-usb", "value":0 },
   { "kind": "msgout-rtcm3x-type4072-0-usb", "value":1 },
   { "kind": "msgout-rtcm3x-type4072-1-usb", "value":1 }
 ]

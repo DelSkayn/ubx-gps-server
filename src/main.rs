@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 
-use log::{info, debug, warn, error};
+use log::{debug, error, info, warn};
 use nmea::NmeaFrame;
 use parse::Error;
 use rtcm::RtcmFrame;
@@ -12,11 +12,11 @@ use ubx::Msg;
 
 mod device;
 mod nmea;
+mod ntrip;
 mod parse;
 mod rtcm;
 mod server;
 mod ubx;
-mod ntrip;
 
 mod cmd;
 
@@ -31,9 +31,9 @@ pub enum GpsMsg<'a> {
 
 impl<'a> GpsMsg<'a> {
     pub fn from_bytes(b: &'a [u8]) -> parse::Result<(Self, usize)> {
-        if b.is_empty(){
+        if b.is_empty() {
             Err(Error::NotEnoughData)
-        }else if ubx::Msg::valid_prefix(b) {
+        } else if ubx::Msg::valid_prefix(b) {
             Msg::from_bytes(b).map(|x| (GpsMsg::Ubx(x.0), x.1))
         } else if RtcmFrame::valid_prefix(b) {
             RtcmFrame::from_bytes(b).map(|x| (GpsMsg::Rtcm(x.0), x.1))
@@ -44,17 +44,13 @@ impl<'a> GpsMsg<'a> {
         }
     }
 
-    pub fn write_bytes(&self,b: &mut Vec<u8>){
-        match *self{
+    pub fn write_bytes(&self, b: &mut Vec<u8>) {
+        match *self {
             GpsMsg::Ubx(ref x) => {
                 x.write_bytes(b);
             }
-            Self::Nmea(ref x) => {
-                b.extend_from_slice(x.as_bytes())
-            }
-            Self::Rtcm(ref x) => {
-                b.extend_from_slice(x.as_bytes())
-            }
+            Self::Nmea(ref x) => b.extend_from_slice(x.as_bytes()),
+            Self::Rtcm(ref x) => b.extend_from_slice(x.as_bytes()),
         }
     }
 

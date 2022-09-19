@@ -1,16 +1,20 @@
 [
   {"kind": "usb-outprot-nmea", "value":false},
   {"kind": "usb-outprot-rtcm3x", "value":false},
-  {"kind": "usb-inprot-rtcm3x", "value":true},
-  {"kind": "rate-meas", "value": 1000},
 
+  {"kind": "usb-inprot-rtcm3x", "value":true},
+  {"kind": "usb-outprot-ubx", "value":true},
+
+  {"kind": "rate-meas", "value":  250},
 
   { "kind": "spi-outprot-ubx", "value": false },
   { "kind": "spi-outprot-nmea", "value":false }, 
   { "kind": "spi-outprot-rtcm3x", "value":false }, 
+
   { "kind": "uart1-outprot-ubx", "value":false }, 
   { "kind": "uart1-outprot-nmea", "value":false }, 
   { "kind": "uart1-outprot-rtcm3x", "value":false },
+
   { "kind": "uart2-outprot-ubx", "value":false }, 
   { "kind": "uart2-outprot-nmea", "value":false }, 
   { "kind": "uart2-outprot-rtcm3x", "value":false },
@@ -19,9 +23,26 @@
     "Error","Warning","Notice","Test","Debug"
   ]},
 
-  { "kind": "msgout-ubx-rxm-rtcm-usb", "value":1 },
-  { "kind": "msgout-ubx-nav-pvt-usb", "value":1 },
-  { "kind": "msgout-ubx-nav-hpposecef-usb", "value":1 },
-  { "kind": "msgout-ubx-nav-rel-pos-ned-usb", "value":1 },
-  { "kind": "msgout-ubx-nav-eoe-usb", "value":1 }
+  { "kind": "signal-gps-ena", "value": true },
+  { "kind": "signal-gps-l1ca-ena", "value": true },
+  { "kind": "signal-gps-l2c-ena", "value": true },
+
+  { "kind": "signal-gal-ena", "value": false },
+  { "kind": "signal-gal-e1-ena", "value": false },
+  { "kind": "signal-gal-e5b-ena", "value": false },
+
+  { "kind": "signal-bds-ena", "value": false },
+  { "kind": "signal-bds-b1-ena", "value": false },
+  { "kind": "signal-bds-b2-ena", "value": false },
+
+  { "kind": "signal-qzss-ena", "value": false },
+  { "kind": "signal-qzss-l1ca-ena", "value": false },
+  { "kind": "signal-qzss-l2c-ena", "value": false },
+
+  { "kind": "signal-glo-ena", "value": false },
+  { "kind": "signal-glo-l1-ena", "value": false },
+  { "kind": "signal-glo-l2-ena", "value": false },
+
+  { "kind": "msgout-ubx-nav-rel-pos-ned-usb", "value":1 }
+  { "kind": "msgout-ubx-mon-comms-usb", "value":1 }
 ]

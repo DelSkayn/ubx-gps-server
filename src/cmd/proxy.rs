@@ -1,10 +1,8 @@
-use clap::{Command, arg, value_parser, ArgAction, ArgMatches};
-use anyhow::{Context,Result};
+use anyhow::{Context, Result};
+use clap::{arg, value_parser, ArgAction, ArgMatches, Command};
 use log::info;
 
 use crate::server::StreamServer;
-
-
 
 pub fn subcmd<'help>() -> Command<'help> {
     Command::new("proxy")
@@ -24,26 +22,22 @@ pub fn subcmd<'help>() -> Command<'help> {
             .default_value("9165")
             .value_parser(value_parser!(u16)),
         )
-        .arg(
-            arg!( -r --raw "Dont format message but send raw bytes")
-            .action(ArgAction::SetTrue)
-        )
+        .arg(arg!( -r --raw "Dont format message but send raw bytes").action(ArgAction::SetTrue))
 }
-
 
 pub async fn cmd(data: &mut super::CmdData, m: &ArgMatches) -> Result<()> {
     let raw = *m.get_one::<bool>("raw").unwrap();
     let addr = m.get_one::<String>("address").unwrap();
     let port = *m.get_one::<u16>("port").unwrap();
 
-    let mut server = StreamServer::new((addr.clone(),port), raw)
+    let mut server = StreamServer::new((addr.clone(), port), raw)
         .await
         .context("Failed to create server")?;
 
     info!("starting proxy");
 
-    if raw{
-        loop{
+    if raw {
+        loop {
             tokio::select! {
                 msg = data.device.read_bytes() => {
                     let msg = msg?;
@@ -54,8 +48,8 @@ pub async fn cmd(data: &mut super::CmdData, m: &ArgMatches) -> Result<()> {
                 }
             }
         }
-    }else{
-        loop{
+    } else {
+        loop {
             tokio::select! {
                 msg = data.device.read() => {
                     let msg = msg?;
