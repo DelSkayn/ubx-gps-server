@@ -1,14 +1,14 @@
 use std::borrow::Cow;
 
-use anyhow::Result;
+use anyhow::{Result, ensure};
 use futures::{future::Either, FutureExt};
-use log::{error, info, warn};
+use log::{error, info, warn, trace};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream, ToSocketAddrs},
 };
 
-use crate::GpsMsg;
+use crate::{parse::{Error as ParseError, Result as ParseResult,ParseData, Offset},GpsMsg};
 
 pub struct Msg<'a>(Cow<'a, [u8]>);
 
@@ -23,6 +23,19 @@ impl<'a> Msg<'a> {
         r.read_exact(&mut data).await?;
 
         Ok(Msg(Cow::Owned(data)))
+    }
+
+
+    pub fn from_bytes(buffer: &'a [u8]) -> ParseResult<(&[u8], Msg<'a>)> {
+        let (b,len) = u32::parse_read(buffer)?;
+        let len = len as usize;
+        if len > b.len(){
+            return Err(ParseError::NotEnoughData);
+        }
+        let data = &b[..len];
+
+        let res = Msg(data.into());
+        Ok((&b[len..],res))
     }
 
     pub fn from_vec(vec: Vec<u8>) -> Msg<'static> {
@@ -43,6 +56,10 @@ impl<'a> Msg<'a> {
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_ref()
     }
+
+    pub fn into_owned(self) -> Msg<'static>{
+        Msg(self.0.into_owned().into())
+    }
 }
 
 pub struct Connection {
@@ -61,16 +78,18 @@ impl Connection {
 
     async fn read(&mut self) -> Result<()> {
         let len = self.stream.read(&mut self.read_buffer).await?;
+        ensure!(len != 0,"connection lost");
         self.buffer.extend_from_slice(&self.read_buffer[..len]);
         Ok(())
     }
 
-    fn read_msg(&mut self) -> Option<GpsMsg<'static>> {
-        let (msg, size) = GpsMsg::from_bytes(&self.buffer).ok()?;
+    fn read_msg(&mut self) -> Option<Msg<'static>> {
+        let (b, msg) = Msg::from_bytes(self.buffer.as_slice()).ok()?;
         let msg = msg.into_owned();
-        let len = self.buffer.len();
-        self.buffer.copy_within(size.., 0);
-        self.buffer.truncate(len - size);
+        let len = self.buffer.as_slice().offset(b);
+        let len_before = self.buffer.len();
+        self.buffer.copy_within(len.., 0);
+        self.buffer.truncate(len_before - len);
         Some(msg)
     }
 }
@@ -184,11 +203,17 @@ impl StreamServer {
             match msg {
                 Either::Left(msg) => {
                     let (idx, msg) = msg;
+                    trace!("recieved data from connection: {}",idx);
                     if let Err(e) = msg {
                         warn!("connection error: {:?}", e);
                         self.connections.swap_remove(idx);
                     } else if let Some(x) = self.connections[idx].read_msg() {
-                        return x;
+                        match serde_json::from_slice::<GpsMsg>(x.as_bytes()){
+                            Ok(x) => return x.into_owned(),
+                            Err(e) => {
+                                warn!("failed to deserialize message: {}",e);
+                            }
+                        }
                     }
                 }
                 Either::Right(accept) => {

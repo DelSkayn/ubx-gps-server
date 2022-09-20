@@ -61,9 +61,9 @@ impl Msg {
         let len = buffer.len();
 
         match *self {
-            Self::Nav(_) => {
+            Self::Nav(ref x) => {
                 buffer.push(0x01);
-                todo!();
+                x.write_bytes(buffer);
             }
             Self::Rxm(_) => {
                 buffer.push(0x02);
