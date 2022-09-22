@@ -14,7 +14,7 @@ use crate::{
     ntrip,
     rtcm::RtcmFrame,
     server::{Msg, StreamServer},
-    GpsMsg,
+    GpsMsg, ResultLog,
 };
 
 use super::CmdData;
@@ -142,36 +142,42 @@ pub async fn cmd(data: &mut CmdData, arg: &ArgMatches) -> Result<()> {
             tokio::select! {
                 msg = x.recv() => {
                     info!("rtcm msg: {:?}", msg);
-                    data.device.write(crate::GpsMsg::Rtcm(msg.expect("rtcm stream quit unexpectedly"))).await?;
+                    data.device.write(crate::GpsMsg::Rtcm(msg.expect("rtcm stream quit unexpectedly"))).await
+                        .context("failed to write rtcm msg")
+                        .log()
+                        .ok();
                 }
                 msg = data.device.read() => {
-                    let msg = msg?;
-                    info!("msg: {:?}", msg);
-                    server.send(&msg).await?;
+                    if let Some(msg) = msg.context("failed to read message from device").log().ok(){
+                        info!("msg: {:?}", msg);
+                        server.send(&msg).await.context("failed to send message to connections").log().ok();
+                    }
                 }
                 msg = ntrip_future => {
-                    let msg = msg?;
-                    data.device.write(GpsMsg::Rtcm(msg)).await?;
+                    if let Some(msg) = msg.context("failed to read message from ntrip stream").log().ok(){
+                        data.device.write(GpsMsg::Rtcm(msg)).await.context("failed to write message to device").log().ok();
+                    }
                 }
                 msg = server.recv() => {
-                    data.device.write(msg).await?;
+                    data.device.write(msg).await.context("failed to write message recieved to device").log().ok();
                 }
             }
         } else {
             tokio::select! {
                 msg = data.device.read() => {
-                    let msg = msg?;
-                    msg.log();
-                    info!("msg: {:?}", msg);
-                    server.send(&msg).await?;
+                    if let Some(msg) = msg.context("failed to read message from device").log().ok(){
+                        info!("msg: {:?}", msg);
+                        server.send(&msg).await.context("failed to send message to connections").log().ok();
+                    }
                 }
                 msg = ntrip_future => {
-                    let msg = msg?;
-                    data.device.write(GpsMsg::Rtcm(msg)).await?;
+                    if let Some(msg) = msg.context("failed to read message from ntrip stream").log().ok(){
+                        data.device.write(GpsMsg::Rtcm(msg)).await.context("failed to write message to device").log().ok();
+                    }
                 }
                 msg = server.recv() => {
                     info!("recv msg: {:?}",msg);
-                    data.device.write(msg).await?;
+                    data.device.write(msg).await.context("failed to write message recieved to device").log().ok();
                 }
             }
         }

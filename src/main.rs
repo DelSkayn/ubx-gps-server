@@ -20,6 +20,22 @@ mod ubx;
 
 mod cmd;
 
+pub trait ResultLog {
+    fn log(self) -> Self;
+}
+
+impl<T, E: std::fmt::Debug> ResultLog for Result<T, E> {
+    fn log(self) -> Self {
+        match self {
+            Ok(x) => Ok(x),
+            Err(e) => {
+                error!("{:?}", e);
+                Err(e)
+            }
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum GpsMsg<'a> {
     #[serde(borrow)]
