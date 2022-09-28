@@ -1,8 +1,5 @@
-use std::{
-    fmt,
-    io::{self, Write},
-    result::Result as StdResult,
-};
+use core::fmt;
+use std::result::Result as StdResult;
 
 pub mod ser_bitflags {
     use enumflags2::{BitFlag, BitFlags};
@@ -64,30 +61,25 @@ macro_rules! impl_struct{
         $(#[$m:meta])*
         pub struct $name:ident{
             $(
-                $(#[$at:meta])*
             $field:ident: $ty:ty,
             )*
         }
     ) => {
         $(#[$m])*
         pub struct $name{
-            $(
-                $(#[$at])*
-                pub $field: $ty,
-            )*
+            $($field: $ty,)*
         }
 
         impl ParseData for $name {
-            fn parse_read(b: &[u8]) -> crate::parse::Result<(&[u8], Self)> {
+            fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
                 $(let (b,$field) = <$ty>::parse_read(b)?;)*
                 Ok((b,$name{
                     $($field,)*
                 }))
             }
 
-            fn parse_write<W: std::io::Write>(&self, b: &mut W) -> crate::parse::Result<()> {
-                $(ParseData::parse_write(&self.$field,b)?;)*
-                Ok(())
+            fn parse_write(self, b: &mut Vec<u8>) {
+                $(self.$field.parse_write(b);)*
             }
         }
     };
@@ -102,8 +94,8 @@ macro_rules! impl_bitfield {
                 Ok((b, Self::from_bits_truncate(v)))
             }
 
-            fn parse_write<W: std::io::Write>(&self, b: &mut W) -> Result<()> {
-                ParseData::parse_write(&self.bits(), b)
+            fn parse_write(self, b: &mut Vec<u8>) {
+                self.bits().parse_write(b);
             }
         }
     };
@@ -129,8 +121,8 @@ macro_rules! impl_enum{
                 }
             }
 
-            fn parse_write<W: std::io::Write>(&self, b: &mut W) -> Result<()> {
-                ParseData::parse_write(&(*self as $repr),b)
+            fn parse_write(self, b: &mut Vec<u8>){
+                (self as $repr).parse_write(b);
             }
         }
     }
@@ -145,7 +137,6 @@ pub enum Error {
     InvalidMsg(u8),
     InvalidLen,
     Invalid,
-    Io(io::Error),
 }
 
 impl fmt::Display for Error {
@@ -158,14 +149,7 @@ impl fmt::Display for Error {
             Error::InvalidMsg(x) => write!(f, "encountered unknown ubx message id `{}`", x),
             Error::InvalidLen => write!(f, "ubx message length is not as specified in spec"),
             Error::Invalid => write!(f, "failed to parse buffer"),
-            Error::Io(ref e) => write!(f, "io error: {}", e),
         }
-    }
-}
-
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Self::Io(e)
     }
 }
 
@@ -203,7 +187,7 @@ impl Offset for [u8] {
 pub trait ParseData: Sized {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)>;
 
-    fn parse_write<W: Write>(&self, b: &mut W) -> Result<()>;
+    fn parse_write(self, b: &mut Vec<u8>);
 }
 
 impl ParseData for u64 {
@@ -216,111 +200,79 @@ impl ParseData for u64 {
         Ok((&b[4..], d))
     }
 
-    fn parse_write<W: Write>(&self, b: &mut W) -> Result<()> {
-        b.write_all(&self.to_le_bytes())?;
-        Ok(())
+    fn parse_write(self, b: &mut Vec<u8>) {
+        b.extend_from_slice(&self.to_le_bytes())
     }
 }
 
 impl ParseData for u32 {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
-        if b.len() < 4 {
-            return Err(Error::NotEnoughData)?;
-        }
-        let d = [b[0], b[1], b[2], b[3]];
-        let d = u32::from_le_bytes(d);
-        Ok((&b[4..], d))
+        read_u32(b)
     }
 
-    fn parse_write<W: Write>(&self, b: &mut W) -> Result<()> {
-        b.write_all(&self.to_le_bytes())?;
-        Ok(())
+    fn parse_write(self, b: &mut Vec<u8>) {
+        b.extend_from_slice(&self.to_le_bytes())
     }
 }
 
 impl ParseData for u16 {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
-        if b.len() < 2 {
-            return Err(Error::NotEnoughData)?;
-        }
-        let d = [b[0], b[1]];
-        let d = u16::from_le_bytes(d);
-        Ok((&b[2..], d))
+        read_u16(b)
     }
 
-    fn parse_write<W: Write>(&self, b: &mut W) -> Result<()> {
-        b.write_all(&self.to_le_bytes())?;
-        Ok(())
+    fn parse_write(self, b: &mut Vec<u8>) {
+        b.extend_from_slice(&self.to_le_bytes())
     }
 }
 
 impl ParseData for u8 {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
-        if b.is_empty() {
-            return Err(Error::NotEnoughData);
-        }
-        Ok((&b[1..], b[0]))
+        read_u8(b)
     }
 
-    fn parse_write<W: Write>(&self, b: &mut W) -> Result<()> {
-        b.write_all(&[*self])?;
-        Ok(())
+    fn parse_write(self, b: &mut Vec<u8>) {
+        b.push(self)
     }
 }
 
 impl ParseData for i32 {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
-        if b.len() < 4 {
-            return Err(Error::NotEnoughData)?;
-        }
-        let d = [b[0], b[1], b[2], b[3]];
-        let d = i32::from_le_bytes(d);
-        Ok((&b[4..], d))
+        read_i32(b)
     }
 
-    fn parse_write<W: Write>(&self, b: &mut W) -> Result<()> {
-        b.write_all(&self.to_le_bytes())?;
-        Ok(())
+    fn parse_write(self, b: &mut Vec<u8>) {
+        b.extend_from_slice(&self.to_le_bytes())
     }
 }
 
 impl ParseData for i16 {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
-        if b.len() < 2 {
-            return Err(Error::NotEnoughData)?;
-        }
-        let d = [b[0], b[1]];
-        let d = i16::from_le_bytes(d);
-        Ok((&b[2..], d))
+        read_i16(b)
     }
 
-    fn parse_write<W: Write>(&self, b: &mut W) -> Result<()> {
-        b.write_all(&self.to_le_bytes())?;
-        Ok(())
+    fn parse_write(self, b: &mut Vec<u8>) {
+        b.extend_from_slice(&self.to_le_bytes())
     }
 }
 
 impl ParseData for i8 {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
-        let d = *b.first().ok_or(Error::NotEnoughData)?;
-        Ok((&b[1..], d as i8))
+        read_i8(b)
     }
 
-    fn parse_write<W: Write>(&self, b: &mut W) -> Result<()> {
-        b.write_all(&[*self as u8])?;
-        Ok(())
+    fn parse_write(self, b: &mut Vec<u8>) {
+        b.push(self as u8)
     }
 }
 
 impl ParseData for bool {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
-        let (b, v) = u8::parse_read(b)?;
+        let (b, v) = read_u8(b)?;
         Ok((b, v != 0))
     }
 
-    fn parse_write<W: Write>(&self, b: &mut W) -> Result<()> {
-        b.write_all(&[*self as u8])?;
-        Ok(())
+    fn parse_write(self, b: &mut Vec<u8>) {
+        b.push(self as u8)
     }
 }
 
@@ -337,37 +289,57 @@ impl<T: ParseData, const N: usize> ParseData for [T; N] {
         Ok((b, unsafe { tmp.assume_init() }))
     }
 
-    fn parse_write<W: Write>(&self, b: &mut W) -> Result<()> {
-        for v in self.iter() {
-            v.parse_write(b)?;
+    fn parse_write(self, b: &mut Vec<u8>) {
+        for v in self.into_iter() {
+            v.parse_write(b)
         }
-        Ok(())
     }
 }
 
-impl<T: ParseData> ParseData for Vec<T> {
-    fn parse_read(mut b: &[u8]) -> Result<(&[u8], Self)> {
-        let mut res = Vec::new();
-        while !b.is_empty() {
-            match T::parse_read(b) {
-                Ok((bn, v)) => {
-                    res.push(v);
-                    b = bn;
-                }
-                Err(Error::NotEnoughData) => return Err(Error::Invalid),
-                Err(x) => return Err(x),
-            }
-        }
+pub fn read_u8(b: &[u8]) -> Result<(&[u8], u8)> {
+    let d = *b.first().ok_or(Error::NotEnoughData)?;
+    Ok((&b[1..], d))
+}
 
-        Ok((b, res))
+pub fn read_u16(b: &[u8]) -> Result<(&[u8], u16)> {
+    if b.len() < 2 {
+        return Err(Error::NotEnoughData)?;
     }
+    let d = [b[0], b[1]];
+    let d = u16::from_le_bytes(d);
+    Ok((&b[2..], d))
+}
 
-    fn parse_write<W: Write>(&self, b: &mut W) -> Result<()> {
-        for v in self.iter() {
-            v.parse_write(b)?;
-        }
-        Ok(())
+pub fn read_u32(b: &[u8]) -> Result<(&[u8], u32)> {
+    if b.len() < 4 {
+        return Err(Error::NotEnoughData)?;
     }
+    let d = [b[0], b[1], b[2], b[3]];
+    let d = u32::from_le_bytes(d);
+    Ok((&b[4..], d))
+}
+
+pub fn read_i8(b: &[u8]) -> Result<(&[u8], i8)> {
+    let d = *b.first().ok_or(Error::NotEnoughData)?;
+    Ok((&b[1..], d as i8))
+}
+
+pub fn read_i16(b: &[u8]) -> Result<(&[u8], i16)> {
+    if b.len() < 2 {
+        return Err(Error::NotEnoughData)?;
+    }
+    let d = [b[0], b[1]];
+    let d = i16::from_le_bytes(d);
+    Ok((&b[2..], d))
+}
+
+pub fn read_i32(b: &[u8]) -> Result<(&[u8], i32)> {
+    if b.len() < 4 {
+        return Err(Error::NotEnoughData)?;
+    }
+    let d = [b[0], b[1], b[2], b[3]];
+    let d = i32::from_le_bytes(d);
+    Ok((&b[4..], d))
 }
 
 pub fn tag<T: ParseData + PartialEq>(b: &[u8], tag: T) -> Result<&[u8]> {
@@ -387,12 +359,4 @@ pub fn collect<T: ParseData>(mut b: &[u8], cnt: usize) -> Result<(&[u8], Vec<T>)
         b = nb;
     }
     Ok((b, res))
-}
-
-pub fn eat<T: ParseData>(b: &[u8], len: usize) -> Result<&[u8]> {
-    if b.len() < len {
-        Err(Error::NotEnoughData)
-    } else {
-        Ok(&b[len..])
-    }
 }
