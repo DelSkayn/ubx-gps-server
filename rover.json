@@ -43,6 +43,6 @@
   { "kind": "signal-glo-l1-ena", "value": false },
   { "kind": "signal-glo-l2-ena", "value": false },
 
-  { "kind": "msgout-ubx-nav-rel-pos-ned-usb", "value":1 }
+  { "kind": "msgout-ubx-nav-rel-pos-ned-usb", "value":1 },
   { "kind": "msgout-ubx-mon-comms-usb", "value":1 }
 ]

@@ -10,6 +10,7 @@ macro_rules! impl_class {
         #[derive(Debug,serde::Serialize,serde::Deserialize, Clone)]
         pub enum $class {
             $($var($t),)*
+            Unknown{ id: u8, payload:Vec<u8> }
         }
 
         #[derive(Debug,serde::Serialize,serde::Deserialize, Clone, Copy, Eq,PartialEq)]
@@ -24,11 +25,18 @@ macro_rules! impl_class {
                 let (b,msg) = u8::parse_read(b)?;
                 match msg{
                     $($e => {
-                        $(let b = crate::parse::tag(b,$len).map_invalid(crate::parse::Error::InvalidLen)?;)*
+                        $(let b = crate::parse::tag(b,($len as u16)).map_invalid(crate::parse::Error::InvalidLen)?;)*
                         let (b,res) = <$t>::parse_read(b)?;
                         Ok((b,Self::$var(res)))
                     })*
-                    _ => Err(crate::parse::Error::Invalid),
+                    x => {
+                        let (b,len) = u16::parse_read(b)?;
+                        let (b,payload) = crate::parse::collect(b,len as usize)?;
+                        Ok((b,Self::Unknown{
+                            id: x,
+                            payload,
+                        }))
+                    }
                 }
             }
 
@@ -38,6 +46,11 @@ macro_rules! impl_class {
                         ($e as u8).parse_write(w)?;
                         x.parse_write(w)
                     })*
+                    Self::Unknown{ id, ref payload } => {
+                        id.parse_write(w)?;
+                        (payload.len() as u16).parse_write(w)?;
+                        payload.parse_write(w)
+                    }
                 }
             }
         }
@@ -74,9 +87,12 @@ use nav::Nav;
 pub mod ack;
 use ack::Ack;
 
+pub mod mon;
+use mon::Mon;
+
 macro_rules! impl_ubx {
     (pub enum Ubx{
-        $($var:ident($t:ty) = $e:expr,)*
+        $($var:ident($t:ty) = $class_id:expr,)*
     }) => {
 
         #[derive(Debug,Serialize,Deserialize, Clone)]
@@ -109,12 +125,12 @@ macro_rules! impl_ubx {
         impl ParseData for Ubx{
 
             fn parse_read(b: &[u8]) -> Result<(&[u8],Self)>{
-                let b = parse::tag(b,0xb5).map_invalid(Error::InvalidHeader)?;
-                let b = parse::tag(b,0x62).map_invalid(Error::InvalidHeader)?;
+                let b = parse::tag(b,0xb5u8).map_invalid(Error::InvalidHeader)?;
+                let b = parse::tag(b,0x62u8).map_invalid(Error::InvalidHeader)?;
 
                 let (b,class) = u8::parse_read(b)?;
                 match class{
-                    $($e => {
+                    $($class_id => {
                         let (b,inner) = <$t>::parse_read(b)?;
                         Ok((b,Ubx::$var(inner)))
                     },)*
@@ -143,7 +159,7 @@ macro_rules! impl_ubx {
                 match *self{
                     $(Self::$var(ref x) => {
                         let mut buffer = Vec::<u8>::new();
-                        ($e as u8).parse_write(&mut buffer).unwrap();
+                        ($class_id as u8).parse_write(&mut buffer).unwrap();
                         x.parse_write(&mut buffer).unwrap();
                         let (ck_a,ck_b) = Self::checksum(&buffer);
                         b.write_all(&buffer)?;
@@ -169,8 +185,9 @@ macro_rules! impl_ubx {
 impl_ubx! {
     pub enum Ubx {
         Cfg(Cfg) = 0x06,
-        Nav(Nav) = 0x04,
+        Nav(Nav) = 0x01,
         Ack(Ack) = 0x05,
+        Mon(Mon) = 0x0A,
     }
 }
 

@@ -1,7 +1,7 @@
 use std::io::Write;
 
 use crate::{
-    impl_bitfield, impl_struct,
+    impl_bitfield, impl_enum, impl_struct,
     parse::{ser_bitflags, Error, ParseData, Result},
 };
 use enumflags2::{bitflags, BitFlags};
@@ -72,22 +72,20 @@ impl_struct! {
     }
 }
 
-#[bitflags]
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Layer {
-    Ram = 0b001,
-    Bbr = 0b010,
-    Flash = 0b100,
+impl_enum! {
+    pub enum Layer: u8{
+        Ram = 0,
+        Bbr = 1,
+        Flash = 2,
+        Default = 7
+    }
 }
-
-impl_bitfield!(Layer);
 
 impl_struct! {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct ValGetRequest {
-        layer: BitFlags<Layer>,
-        res1: u16,
+        layer: Layer,
+        res1: [u8;2],
         keys: Vec<ValueKey>,
     }
 }
@@ -95,8 +93,8 @@ impl_struct! {
 impl_struct! {
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     pub struct ValGetResponse{
-        layer: BitFlags<Layer>,
-        res1: u16,
+        layer: Layer,
+        res1: [u8;2],
         keys: Vec<Value>,
     }
 }
@@ -147,11 +145,22 @@ impl ParseData for ValGet {
     }
 }
 
+#[bitflags]
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BitLayer {
+    Ram = 0b001,
+    Bbr = 0b010,
+    Flash = 0b100,
+}
+
+impl_bitfield!(BitLayer);
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ValSet {
     pub version: u8,
     #[serde(with = "ser_bitflags")]
-    pub layers: BitFlags<Layer>,
+    pub layers: BitFlags<BitLayer>,
     pub res1: [u8; 2],
     pub values: Vec<Value>,
 }
@@ -198,7 +207,7 @@ impl ParseData for ValSet {
 
 impl_class! {
     pub enum Cfg: PollCfg {
-        TMode3(TMode3)[40u16] = 0x71,
+        TMode3(TMode3)[40] = 0x71,
         ValGet(ValGet) = 0x8b,
         ValSet(ValSet) = 0x8a,
     }

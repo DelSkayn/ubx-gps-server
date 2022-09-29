@@ -27,7 +27,7 @@ async fn run() -> Result<()> {
         )
         .arg(
             arg!(
-                <ADDRESS> "Connect to an other server."
+                [ADDRESS] "Connect to an other server."
             )
             .required(true)
             .value_parser(SocketAddr::from_str),
@@ -41,13 +41,13 @@ async fn run() -> Result<()> {
         )
         .arg(
             arg!(
-                -D --deamonize "run the server as a deamon"
+                -D --deamon "run the server as a deamon"
             )
             .action(ArgAction::SetTrue),
         )
         .get_matches();
 
-    let address = matches.get_one::<SocketAddr>("address").unwrap();
+    let address = matches.get_one::<SocketAddr>("ADDRESS").unwrap();
     let server_address = matches.get_one::<String>("host").unwrap();
     let server_port = *matches.get_one::<u16>("port").unwrap();
 
@@ -79,7 +79,7 @@ async fn run() -> Result<()> {
                 }
             },
             Either::Right((Some(x), _)) => match GpsMsg::parse_read(&x) {
-                Ok(x) => {
+                Ok((_, x)) => {
                     trace!("message: {:?}", x);
                     match serde_json::to_vec(&x) {
                         Ok(data) => {

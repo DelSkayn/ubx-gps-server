@@ -75,7 +75,7 @@ async fn run() -> Result<()> {
         )
         .arg(
             arg!(
-                -D --deamonize "run the server as a deamon"
+                -D --deamon "run the server as a deamon"
             )
             .action(ArgAction::SetTrue),
         )
@@ -135,6 +135,7 @@ async fn run() -> Result<()> {
                     std::mem::swap(&mut buf,&mut pending_read_bytes);
 
                     connections.send(buf).await.unwrap();
+                    connections.flush().await.unwrap();
                 }
             },
             x = outgoing_connection_future => {

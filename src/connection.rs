@@ -227,7 +227,9 @@ impl Sink<Vec<u8>> for ConnectionPool {
 
     fn start_send(self: Pin<&mut Self>, item: Vec<u8>) -> StdResult<(), Self::Error> {
         let this = self.project();
-        *this.send = Some((this.connections.len() - 1, item));
+        if !this.connections.is_empty() {
+            *this.send = Some((this.connections.len() - 1, item));
+        }
         Ok(())
     }
 
@@ -332,21 +334,19 @@ impl Connection {
                         }
                     }
                 }
-                WriteState::WritingData {
-                    mut written,
-                    mut data,
-                } => match self.tcp.as_mut().poll_write(cx, &data) {
-                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                    Poll::Pending => return Poll::Pending,
-                    Poll::Ready(Ok(x)) => {
-                        written += x;
-                        if written >= data.len() {
-                            return Poll::Ready(Ok(()));
+                WriteState::WritingData { mut written, data } => {
+                    match self.tcp.as_mut().poll_write(cx, &data[written..]) {
+                        Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                        Poll::Pending => return Poll::Pending,
+                        Poll::Ready(Ok(x)) => {
+                            written += x;
+                            if written >= data.len() {
+                                return Poll::Ready(Ok(()));
+                            }
+                            self.write_pending = WriteState::WritingData { written, data };
                         }
-                        data.shift(x);
-                        self.write_pending = WriteState::WritingData { written, data };
                     }
-                },
+                }
             }
         }
     }
@@ -372,8 +372,8 @@ impl Stream for Connection {
                 Poll::Pending => return Poll::Pending,
             }
 
-            if this.pending.is_none() {
-                match <[u8; 4]>::try_from(this.buffer.as_slice()) {
+            if this.pending.is_none() && this.buffer.len() >= 4 {
+                match <[u8; 4]>::try_from(&this.buffer[..4]) {
                     Ok(x) => {
                         this.buffer.shift(4);
                         *this.pending = Some(u32::from_le_bytes(x));
@@ -384,12 +384,13 @@ impl Stream for Connection {
                 }
             }
 
-            if let Some(pending) = this.pending {
-                if this.buffer.len() >= *pending as usize {
-                    let mut res = this.buffer.split_off(*pending as usize);
+            if let Some(pending) = this.pending.take() {
+                if this.buffer.len() >= pending as usize {
+                    let mut res = this.buffer.split_off(pending as usize);
                     std::mem::swap(&mut res, this.buffer);
                     return Poll::Ready(Some(Ok(res)));
                 }
+                *this.pending = Some(pending);
             }
         }
     }

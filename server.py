@@ -15,8 +15,10 @@ class GpsSocket:
     def __init__(self):
         self.socket = socket()
         self.bytes = b'';
+        self.addr = None
 
     def connect(self, addr):
+        self.addr = addr
         self.socket.connect(addr)
 
     def parse(self):
@@ -37,7 +39,10 @@ class GpsSocket:
             msg = self.parse()
             if msg is not None:
                 return json.loads(msg)
+            l = len(self.bytes)
             self.bytes += self.socket.recv(4096)
+            if l == len(self.bytes):
+                raise Exception("gps connection quit")
 
 socket = GpsSocket()
 socket.connect((addr_socket,int(port_socket)))
@@ -64,6 +69,7 @@ def filter(dict,paths):
 
 
 PATHS = [
+    ['Ubx'],
     #['Ubx','Nav','Svin'],
     #['Ubx','Mon','Rf','blocks','0','ant_status'],
     #['Ubx','Mon','Rf','blocks','0','ant_power'],
