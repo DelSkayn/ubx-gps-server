@@ -10,7 +10,7 @@ use std::{
 
 use crate::VecExt;
 
-use futures::{stream::FusedStream, Future, FutureExt, Sink, Stream, StreamExt};
+use futures::{stream::FusedStream, Future, FutureExt, Sink, SinkExt, Stream, StreamExt};
 use log::{error, info};
 use pin_project::pin_project;
 use tokio::{
@@ -117,8 +117,8 @@ impl Stream for OutgoingConnection {
 
 pub enum WriteState {
     None,
-    PendingLen { remaining_len: usize, data: Vec<u8> },
-    Pending(Vec<u8>),
+    WritingLength { written: usize, data: Vec<u8> },
+    WritingData { written: usize, data: Vec<u8> },
 }
 
 #[pin_project]
@@ -136,6 +136,38 @@ impl ConnectionPool {
             send: None,
         }
     }
+
+    fn poll_flush_out(&mut self, cx: &mut Context<'_>) -> Poll<()> {
+        loop {
+            if let Some((idx, data)) = self.send.as_mut() {
+                match self.connections[*idx].as_mut().poll_ready(cx) {
+                    Poll::Ready(Err(e)) => {
+                        error!("error sending to connection: {}", e);
+                        self.connections.swap_remove(*idx);
+                        if *idx == 0 {
+                            self.send = None;
+                        } else {
+                            *idx -= 1;
+                        }
+                    }
+                    Poll::Ready(Ok(())) => {
+                        if let Err(e) = self.connections[*idx].as_mut().start_send(data.clone()) {
+                            error!("error sending to connection: {}", e);
+                            self.connections.swap_remove(*idx);
+                        }
+                        if *idx == 0 {
+                            self.send = None;
+                        } else {
+                            *idx -= 1;
+                        }
+                    }
+                    Poll::Pending => return Poll::Pending,
+                }
+            } else {
+                return Poll::Ready(());
+            }
+        }
+    }
 }
 
 impl FusedStream for ConnectionPool {
@@ -147,8 +179,8 @@ impl FusedStream for ConnectionPool {
 impl Stream for ConnectionPool {
     type Item = Vec<u8>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project();
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this: &mut Self = &mut *self;
 
         loop {
             match this.listener.poll_accept(cx) {
@@ -186,38 +218,11 @@ impl Stream for ConnectionPool {
 impl Sink<Vec<u8>> for ConnectionPool {
     type Error = ();
 
-    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<StdResult<(), Self::Error>> {
-        let this = self.project();
-
-        loop {
-            if let Some((idx, data)) = this.send.as_mut() {
-                match this.connections[*idx].as_mut().poll_ready(cx) {
-                    Poll::Ready(Err(e)) => {
-                        error!("error sending to connection: {}", e);
-                        this.connections.swap_remove(*idx);
-                        if *idx == 0 {
-                            *this.send = None;
-                        } else {
-                            *idx -= 1;
-                        }
-                    }
-                    Poll::Ready(Ok(())) => {
-                        if let Err(e) = this.connections[*idx].as_mut().start_send(data.clone()) {
-                            error!("error sending to connection: {}", e);
-                            this.connections.swap_remove(*idx);
-                        }
-                        if *idx == 0 {
-                            *this.send = None;
-                        } else {
-                            *idx -= 1;
-                        }
-                    }
-                    Poll::Pending => return Poll::Pending,
-                }
-            } else {
-                return Poll::Ready(Ok(()));
-            }
-        }
+    fn poll_ready(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<StdResult<(), Self::Error>> {
+        self.poll_flush_out(cx).map(Ok)
     }
 
     fn start_send(self: Pin<&mut Self>, item: Vec<u8>) -> StdResult<(), Self::Error> {
@@ -226,12 +231,52 @@ impl Sink<Vec<u8>> for ConnectionPool {
         Ok(())
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<StdResult<(), Self::Error>> {
-        self.poll_ready(cx)
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<StdResult<(), Self::Error>> {
+        let this: &mut Self = &mut *self;
+        match this.poll_flush_out(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(_) => {
+                for c in (0..this.connections.len()).rev() {
+                    match this.connections[c].as_mut().poll_flush(cx) {
+                        Poll::Ready(Ok(())) => {}
+                        Poll::Pending => return Poll::Pending,
+                        Poll::Ready(Err(e)) => {
+                            error!("error connection {e}");
+                            this.connections.swap_remove(c);
+                        }
+                    }
+                }
+                return Poll::Ready(Ok(()));
+            }
+        }
     }
 
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<StdResult<(), Self::Error>> {
-        self.poll_ready(cx)
+    fn poll_close(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<StdResult<(), Self::Error>> {
+        let this: &mut Self = &mut *self;
+        match this.poll_flush_out(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(_) => {
+                for c in (0..this.connections.len()).rev() {
+                    match this.connections[c].as_mut().poll_close(cx) {
+                        Poll::Ready(Ok(())) => {
+                            this.connections.pop();
+                        }
+                        Poll::Pending => return Poll::Pending,
+                        Poll::Ready(Err(e)) => {
+                            error!("error connection {e}");
+                            this.connections.pop();
+                        }
+                    }
+                }
+                return Poll::Ready(Ok(()));
+            }
+        }
     }
 }
 
@@ -256,10 +301,54 @@ impl Connection {
     }
 
     pub async fn write_message(&mut self, data: &[u8]) -> Result<()> {
-        let len = u32::try_from(data.len()).expect("message length to long");
+        self.flush().await?;
+        let len = u32::try_from(data.len())
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         let len = len.to_le_bytes();
         self.tcp.write_all(&len).await?;
         self.tcp.write_all(data).await
+    }
+
+    fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        loop {
+            match std::mem::replace(&mut self.write_pending, WriteState::None) {
+                WriteState::None => return Poll::Ready(Ok(())),
+                WriteState::WritingLength { mut written, data } => {
+                    let len = u32::try_from(data.len())
+                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+                    let buffer = len.to_le_bytes();
+
+                    match self.tcp.as_mut().poll_write(cx, &buffer[written..]) {
+                        Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                        Poll::Pending => return Poll::Pending,
+                        Poll::Ready(Ok(x)) => {
+                            written += x;
+
+                            if written >= 4 {
+                                self.write_pending = WriteState::WritingData { written: 0, data };
+                            } else {
+                                self.write_pending = WriteState::WritingLength { written, data };
+                            }
+                        }
+                    }
+                }
+                WriteState::WritingData {
+                    mut written,
+                    mut data,
+                } => match self.tcp.as_mut().poll_write(cx, &data) {
+                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                    Poll::Pending => return Poll::Pending,
+                    Poll::Ready(Ok(x)) => {
+                        written += x;
+                        if written >= data.len() {
+                            return Poll::Ready(Ok(()));
+                        }
+                        data.shift(x);
+                        self.write_pending = WriteState::WritingData { written, data };
+                    }
+                },
+            }
+        }
     }
 }
 
@@ -309,140 +398,35 @@ impl Stream for Connection {
 impl Sink<Vec<u8>> for Connection {
     type Error = std::io::Error;
 
-    fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        let this = self.project();
+    fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        let this: &mut Self = &mut *self;
 
-        loop {
-            match std::mem::replace(this.write_pending, WriteState::None) {
-                WriteState::None => return Poll::Ready(Ok(())),
-                WriteState::PendingLen {
-                    remaining_len,
-                    data,
-                } => {
-                    let buffer = (data.len() as u32).to_le_bytes();
-                    match this.tcp.as_mut().poll_write(cx, &buffer) {
-                        Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                        Poll::Pending => return Poll::Pending,
-                        Poll::Ready(Ok(x)) => {
-                            let new_len = remaining_len - x;
-                            if new_len == 0 {
-                                *this.write_pending = WriteState::Pending(data);
-                            } else {
-                                *this.write_pending = WriteState::PendingLen {
-                                    remaining_len: new_len,
-                                    data,
-                                };
-                            }
-                        }
-                    }
-                }
-                WriteState::Pending(mut data) => match this.tcp.as_mut().poll_write(cx, &data) {
-                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                    Poll::Pending => return Poll::Pending,
-                    Poll::Ready(Ok(x)) => {
-                        let len = data.len();
-                        if x == len {
-                            return Poll::Ready(Ok(()));
-                        }
-                        data.shift(x);
-                        *this.write_pending = WriteState::Pending(data);
-                    }
-                },
-            }
-        }
+        this.poll_flush(cx)
     }
 
     fn start_send(mut self: Pin<&mut Self>, item: Vec<u8>) -> Result<()> {
-        self.write_pending = WriteState::PendingLen {
-            remaining_len: 4,
+        self.write_pending = WriteState::WritingLength {
+            written: 0,
             data: item,
         };
         Ok(())
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        let this = self.project();
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        let this: &mut Self = &mut *self;
 
-        loop {
-            match std::mem::replace(this.write_pending, WriteState::None) {
-                WriteState::None => return this.tcp.as_mut().poll_flush(cx),
-                WriteState::PendingLen {
-                    remaining_len,
-                    data,
-                } => {
-                    let buffer = (data.len() as u32).to_le_bytes();
-                    match this.tcp.as_mut().poll_write(cx, &buffer) {
-                        Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                        Poll::Pending => return Poll::Pending,
-                        Poll::Ready(Ok(x)) => {
-                            let new_len = remaining_len - x;
-                            if new_len == 0 {
-                                *this.write_pending = WriteState::Pending(data);
-                            } else {
-                                *this.write_pending = WriteState::PendingLen {
-                                    remaining_len: new_len,
-                                    data,
-                                };
-                            }
-                        }
-                    }
-                }
-                WriteState::Pending(mut data) => match this.tcp.as_mut().poll_write(cx, &data) {
-                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                    Poll::Pending => return Poll::Pending,
-                    Poll::Ready(Ok(x)) => {
-                        let len = data.len();
-                        if x == len {
-                            return Poll::Ready(Ok(()));
-                        }
-                        data.shift(x);
-                        *this.write_pending = WriteState::Pending(data);
-                    }
-                },
-            }
+        match this.poll_flush(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(_) => this.tcp.as_mut().poll_flush(cx),
         }
     }
 
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        let this = self.project();
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        let this: &mut Self = &mut *self;
 
-        loop {
-            match std::mem::replace(this.write_pending, WriteState::None) {
-                WriteState::None => return this.tcp.as_mut().poll_shutdown(cx),
-                WriteState::PendingLen {
-                    remaining_len,
-                    data,
-                } => {
-                    let buffer = (data.len() as u32).to_le_bytes();
-                    match this.tcp.as_mut().poll_write(cx, &buffer) {
-                        Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                        Poll::Pending => return Poll::Pending,
-                        Poll::Ready(Ok(x)) => {
-                            let new_len = remaining_len - x;
-                            if new_len == 0 {
-                                *this.write_pending = WriteState::Pending(data);
-                            } else {
-                                *this.write_pending = WriteState::PendingLen {
-                                    remaining_len: new_len,
-                                    data,
-                                };
-                            }
-                        }
-                    }
-                }
-                WriteState::Pending(mut data) => match this.tcp.as_mut().poll_write(cx, &data) {
-                    Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                    Poll::Pending => return Poll::Pending,
-                    Poll::Ready(Ok(x)) => {
-                        let len = data.len();
-                        if x == len {
-                            return Poll::Ready(Ok(()));
-                        }
-                        data.shift(x);
-                        *this.write_pending = WriteState::Pending(data);
-                    }
-                },
-            }
+        match this.poll_flush(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(_) => this.tcp.as_mut().poll_shutdown(cx),
         }
     }
 }
