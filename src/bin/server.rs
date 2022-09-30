@@ -6,9 +6,11 @@ use futures::{FutureExt, SinkExt, StreamExt};
 use gps::{
     connection::{ConnectionPool, OutgoingConnection},
     msg::GpsMsg,
+    parse::ParseData,
     VecExt,
 };
 
+use log::trace;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -133,16 +135,21 @@ async fn run() -> Result<()> {
 
                     let mut buf = pending_read_bytes.split_off(x);
                     std::mem::swap(&mut buf,&mut pending_read_bytes);
+                    trace!("message from device {:?}",GpsMsg::parse_read(&buf));
 
                     connections.send(buf).await.unwrap();
                     connections.flush().await.unwrap();
                 }
             },
             x = outgoing_connection_future => {
-                port.write_all(&x.unwrap()).await.context("error writing to device")?;
+                let x = x.unwrap();
+                trace!("message from outgoing {:?}",GpsMsg::parse_read(&x));
+                port.write_all(&x).await.context("error writing to device")?;
             },
-            out = connection_future => {
-                port.write_all(&out.unwrap()).await.context("error writing to device")?;
+            x = connection_future => {
+                let x = x.unwrap();
+                trace!("message from connection {:?}",GpsMsg::parse_read(&x));
+                port.write_all(&x).await.context("error writing to device")?;
             }
         }
     }

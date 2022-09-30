@@ -57,7 +57,7 @@ impl Rtcm {
     }
 
     fn get_bits(b: &[u8], pos: usize, len: usize) -> u32 {
-        let mut bits = 9;
+        let mut bits = 0;
         for i in pos..(pos + len) {
             bits = bits << 1;
             bits |= (b[i / 8] as u32 >> (7 - i % 8)) & 1;
