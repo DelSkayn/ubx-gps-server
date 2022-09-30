@@ -3,7 +3,8 @@ use crate::{impl_struct, parse::ParseData};
 use serde::{Deserialize, Serialize};
 
 impl_struct! {
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct AckData{
     cls_id: u8,
     msg_id: u8,

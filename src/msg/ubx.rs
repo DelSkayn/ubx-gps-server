@@ -79,20 +79,20 @@ macro_rules! impl_class {
 }
 
 pub mod cfg;
-use cfg::Cfg;
+use cfg::{Cfg, PollCfg};
 
 pub mod nav;
-use nav::Nav;
+use nav::{Nav, PollNav};
 
 pub mod ack;
-use ack::Ack;
+use ack::{Ack, PollAck};
 
 pub mod mon;
-use mon::Mon;
+use mon::{Mon, PollMon};
 
 macro_rules! impl_ubx {
     (pub enum Ubx{
-        $($var:ident($t:ty) = $class_id:expr,)*
+        $($var:ident($t:ty,$p:ty) = $class_id:expr,)*
     }) => {
 
         #[derive(Debug,Serialize,Deserialize, Clone)]
@@ -179,15 +179,80 @@ macro_rules! impl_ubx {
             }
         }
 
+        #[derive(Debug,Serialize,Deserialize, Clone)]
+        pub enum UbxPoll{
+            $(
+                $var($p),
+            )*
+            Unknown{
+                class: u8,
+                msg: u8,
+                ck_a: u8,
+                ck_b: u8,
+            }
+        }
+
+        impl ParseData for UbxPoll{
+
+            fn parse_read(b: &[u8]) -> Result<(&[u8],Self)>{
+                let b = parse::tag(b,0xb5u8).map_invalid(Error::InvalidHeader)?;
+                let b = parse::tag(b,0x62u8).map_invalid(Error::InvalidHeader)?;
+
+                let (b,class) = u8::parse_read(b)?;
+                match class{
+                    $($class_id => {
+                        let (b,inner) = <$p>::parse_read(b)?;
+                        Ok((b,UbxPoll::$var(inner)))
+                    },)*
+                    _ => {
+                        let (b,msg) = u8::parse_read(b)?;
+                        let b = parse::tag(b, 0u16)?;
+                        let (b,ck_a) = u8::parse_read(b)?;
+                        let (b,ck_b) = u8::parse_read(b)?;
+                        Ok((b,UbxPoll::Unknown{
+                            class,
+                            msg,
+                            ck_a,
+                            ck_b
+                        }))
+                    }
+                }
+            }
+
+            fn parse_write<W: Write>(&self, b: &mut W) -> Result<()> {
+                0xb5u8.parse_write(b)?;
+                0x62u8.parse_write(b)?;
+
+                match *self{
+                    $(Self::$var(ref x) => {
+                        let mut buffer = Vec::<u8>::new();
+                        ($class_id as u8).parse_write(&mut buffer).unwrap();
+                        x.parse_write(&mut buffer).unwrap();
+                        let (ck_a,ck_b) = Ubx::checksum(&buffer);
+                        b.write_all(&buffer)?;
+                        b.write_all(&[ck_a,ck_b])?;
+                        Ok(())
+                    })*
+                    UbxPoll::Unknown{ class,msg,ck_a,ck_b } => {
+                        class.parse_write(b)?;
+                        msg.parse_write(b)?;
+                        0u16.parse_write(b)?;
+                        ck_a.parse_write(b)?;
+                        ck_b.parse_write(b)?;
+                        Ok(())
+                    }
+                }
+            }
+        }
     };
 }
 
 impl_ubx! {
     pub enum Ubx {
-        Cfg(Cfg) = 0x06,
-        Nav(Nav) = 0x01,
-        Ack(Ack) = 0x05,
-        Mon(Mon) = 0x0A,
+        Cfg(Cfg,PollCfg) = 0x06,
+        Nav(Nav,PollNav) = 0x01,
+        Ack(Ack,PollAck) = 0x05,
+        Mon(Mon,PollMon) = 0x0A,
     }
 }
 

@@ -18,7 +18,14 @@ pub enum TMode {
     Reserved(u8),
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+impl Default for TMode {
+    fn default() -> Self {
+        Self::Disabled
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(default)]
 pub struct TModeFlags {
     pub lla: bool,
     pub mode: TMode,
@@ -53,7 +60,8 @@ impl ParseData for TModeFlags {
 }
 
 impl_struct! {
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
     pub struct TMode3 {
         version: u8,
         res1: u8,
@@ -81,8 +89,15 @@ impl_enum! {
     }
 }
 
+impl Default for Layer {
+    fn default() -> Self {
+        Self::Default
+    }
+}
+
 impl_struct! {
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
     pub struct ValGetRequest {
         layer: Layer,
         res1: [u8;2],
@@ -91,7 +106,8 @@ impl_struct! {
 }
 
 impl_struct! {
-    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
     pub struct ValGetResponse{
         layer: Layer,
         res1: [u8;2],
@@ -156,7 +172,8 @@ pub enum BitLayer {
 
 impl_bitfield!(BitLayer);
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct ValSet {
     pub version: u8,
     #[serde(with = "ser_bitflags")]

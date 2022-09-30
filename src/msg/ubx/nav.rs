@@ -8,7 +8,8 @@ use enumflags2::{bitflags, BitFlags};
 use serde::{Deserialize, Serialize};
 
 impl_struct! {
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct Clock{
     i_tow: u32,
     clk_b: i32,
@@ -19,7 +20,8 @@ pub struct Clock{
 }
 
 impl_struct! {
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct Dop{
     i_tow: u32,
     g_dop: u16,
@@ -33,14 +35,16 @@ pub struct Dop{
 }
 
 impl_struct! {
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct Eoe{
     i_tow: u32,
 }
 }
 
 impl_struct! {
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize,Default)]
+#[serde(default)]
 pub struct Hpposecef{
     version:u8,
     res1: [u8;3],
@@ -57,7 +61,8 @@ pub struct Hpposecef{
 }
 
 impl_struct! {
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize,Default)]
+#[serde(default)]
 pub struct Hpposllh{
     version:u8,
     res1: [u8;3],
@@ -76,7 +81,8 @@ pub struct Hpposllh{
 }
 
 impl_struct! {
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct Odo{
     version:u8,
     res1: [u8;3],
@@ -88,7 +94,8 @@ pub struct Odo{
 }
 
 impl_struct! {
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct Posecef{
     i_tow: u32,
     ecef_x: i32,
@@ -99,7 +106,8 @@ pub struct Posecef{
 }
 
 impl_struct! {
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct Posllh{
     i_tow: u32,
     lon: i32,
@@ -215,6 +223,7 @@ impl ParseData for FixType {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct FixStatus {
     car_sol: CarrierPhaseSol,
     head_veh_valid: bool,
@@ -267,7 +276,8 @@ impl ParseData for FixStatus {
 }
 
 impl_struct! {
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize,Default)]
+#[serde(default)]
 pub struct Pvt{
         i_tow: u32,
         year: u16,
@@ -307,7 +317,8 @@ pub struct Pvt{
 }
 
 impl_struct! {
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize,Default)]
+#[serde(default)]
     pub struct RelPosNed {
         version: u8,
         res1: u8,
