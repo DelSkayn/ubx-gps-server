@@ -27,9 +27,10 @@ async fn run() -> Result<()> {
         )
         .arg(
             arg!(
-                [ADDRESS] "Connect to an other server."
+                [ADDRESS] "The address to of the gps server to connect too."
             )
             .required(true)
+            .default_value("0.0.0.0:9165")
             .value_parser(SocketAddr::from_str),
         )
         .arg(
@@ -84,6 +85,7 @@ async fn run() -> Result<()> {
                     match serde_json::to_vec(&x) {
                         Ok(data) => {
                             connections.send(data).await.unwrap();
+                            connections.flush().await.unwrap();
                         }
                         Err(e) => {
                             error!("error serializing message {e}");

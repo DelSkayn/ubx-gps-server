@@ -308,7 +308,8 @@ impl Connection {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         let len = len.to_le_bytes();
         self.tcp.write_all(&len).await?;
-        self.tcp.write_all(data).await
+        self.tcp.write_all(data).await?;
+        self.tcp.flush().await
     }
 
     fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {

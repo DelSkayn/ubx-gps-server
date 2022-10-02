@@ -1,0 +1,17 @@
+[package]
+name = "gps_python_bridge"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "gps_socket"
+crate-type = ["cdylib"]
+
+[dependencies]
+gps = { version = "0.1.0", path = ".." }
+pyo3 = { version = "0.14", features = ["extension-module"] }
+pythonize = "0.14.0"
+tokio = { version = "1.21.2", features = ["full"] }
+futures = "0.3.23"

@@ -129,7 +129,7 @@ async fn run() -> Result<()> {
         .version("0.1")
         .arg(
             arg!(
-                [address] "The address to host the server on"
+                [address] "The address to connect too"
             )
             .required(false)
             .default_value("0.0.0.0:9165"),

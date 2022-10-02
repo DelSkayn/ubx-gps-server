@@ -123,6 +123,11 @@ macro_rules! impl_ubx {
                 }
                 (a, b)
             }
+
+            fn checksum_valid(data: &[u8],ck_a: u8, ck_b: u8) -> bool{
+                let (a,b) = Self::checksum(data);
+                ck_a == a && ck_b == b
+            }
         }
 
         impl ParseData for Ubx{
@@ -136,10 +141,11 @@ macro_rules! impl_ubx {
                 match class{
                     $($class_id => {
                         let (b,inner) = <$t>::parse_read(b)?;
+                        let c = &c[..c.len() - b.len()];
                         let (b,ck_a) = u8::parse_read(b)?;
                         let (b,ck_b) = u8::parse_read(b)?;
-                        let checksum = Ubx::checksum(&c[..(c.len()) - 2]);
-                        if checksum.0 != ck_a || checksum.1 != ck_b {
+
+                        if !Ubx::checksum_valid(c,ck_a,ck_b) {
                             return Err(Error::InvalidChecksum);
                         }
 
@@ -149,12 +155,14 @@ macro_rules! impl_ubx {
                         let (b,msg) = u8::parse_read(b)?;
                         let (b,len) = u16::parse_read(b)?;
                         let (b,payload) = parse::collect(b,len as usize)?;
+                        let c = &c[..c.len() - b.len()];
                         let (b,ck_a) = u8::parse_read(b)?;
                         let (b,ck_b) = u8::parse_read(b)?;
-                        let checksum = Ubx::checksum(&c[..(c.len()) - 2]);
-                        if checksum.0 != ck_a || checksum.1 != ck_b {
+
+                        if !Ubx::checksum_valid(c,ck_a,ck_b) {
                             return Err(Error::InvalidChecksum);
                         }
+
                         Ok((b,Ubx::Unknown{
                             class,
                             msg,
@@ -213,10 +221,18 @@ macro_rules! impl_ubx {
                 let b = parse::tag(b,0xb5u8).map_invalid(Error::InvalidHeader)?;
                 let b = parse::tag(b,0x62u8).map_invalid(Error::InvalidHeader)?;
 
+                let c = b;
                 let (b,class) = u8::parse_read(b)?;
                 match class{
                     $($class_id => {
                         let (b,inner) = <$p>::parse_read(b)?;
+                        let b = parse::tag(b, 0u16)?;
+                        let c = &c[..c.len() - b.len()];
+                        let (b,ck_a) = u8::parse_read(b)?;
+                        let (b,ck_b) = u8::parse_read(b)?;
+                        if !Ubx::checksum_valid(c,ck_a,ck_b){
+                            return Err(Error::InvalidChecksum)
+                        }
                         Ok((b,UbxPoll::$var(inner)))
                     },)*
                     _ => {
