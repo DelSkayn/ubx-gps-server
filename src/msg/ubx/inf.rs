@@ -34,6 +34,6 @@ impl_class! {
         Error(Error) = 0x00,
         Notice(Notice) = 0x02,
         Test(Test) = 0x03,
-        Warning(Warning) = 0x04,
+        Warning(Warning) = 0x01,
     }
 }
