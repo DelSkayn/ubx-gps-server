@@ -131,10 +131,18 @@ macro_rules! impl_ubx {
                 let b = parse::tag(b,0xb5u8).map_invalid(Error::InvalidHeader)?;
                 let b = parse::tag(b,0x62u8).map_invalid(Error::InvalidHeader)?;
 
+                let c = b;
                 let (b,class) = u8::parse_read(b)?;
                 match class{
                     $($class_id => {
                         let (b,inner) = <$t>::parse_read(b)?;
+                        let (b,ck_a) = u8::parse_read(b)?;
+                        let (b,ck_b) = u8::parse_read(b)?;
+                        let checksum = Ubx::checksum(&c[..(c.len()) - 2]);
+                        if checksum.0 != ck_a || checksum.1 != ck_b {
+                            return Err(Error::InvalidChecksum);
+                        }
+
                         Ok((b,Ubx::$var(inner)))
                     },)*
                     _ => {
@@ -143,6 +151,10 @@ macro_rules! impl_ubx {
                         let (b,payload) = parse::collect(b,len as usize)?;
                         let (b,ck_a) = u8::parse_read(b)?;
                         let (b,ck_b) = u8::parse_read(b)?;
+                        let checksum = Ubx::checksum(&c[..(c.len()) - 2]);
+                        if checksum.0 != ck_a || checksum.1 != ck_b {
+                            return Err(Error::InvalidChecksum);
+                        }
                         Ok((b,Ubx::Unknown{
                             class,
                             msg,
