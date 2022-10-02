@@ -146,11 +146,13 @@ async fn run() -> Result<()> {
                 let x = x.unwrap();
                 trace!("message from outgoing {:?}",GpsMsg::parse_read(&x));
                 port.write_all(&x).await.context("error writing to device")?;
+                port.flush().await.context("error writing to device")?;
             },
             x = connection_future => {
                 let x = x.unwrap();
                 trace!("message from connection {:?}",GpsMsg::parse_read(&x));
                 port.write_all(&x).await.context("error writing to device")?;
+                port.flush().await.context("error writing to device")?;
             }
         }
     }
