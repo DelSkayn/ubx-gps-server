@@ -137,6 +137,7 @@ async fn run() -> Result<()> {
                     std::mem::swap(&mut buf,&mut pending_read_bytes);
                     trace!("message from device {:?}",GpsMsg::parse_read(&buf));
 
+                    outgoing_connection.try_send_message(&buf).await;
                     connections.send(buf).await.unwrap();
                     connections.flush().await.unwrap();
                 }
