@@ -90,6 +90,9 @@ use ack::{Ack, PollAck};
 pub mod mon;
 use mon::{Mon, PollMon};
 
+pub mod rxm;
+use rxm::{PollRxm, Rxm};
+
 macro_rules! impl_ubx {
     (pub enum Ubx{
         $($var:ident($t:ty,$p:ty) = $class_id:expr,)*
@@ -253,6 +256,7 @@ impl_ubx! {
         Nav(Nav,PollNav) = 0x01,
         Ack(Ack,PollAck) = 0x05,
         Mon(Mon,PollMon) = 0x0A,
+        Rxm(Rxm,PollRxm) = 0x02,
     }
 }
 

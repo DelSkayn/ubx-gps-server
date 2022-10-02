@@ -97,12 +97,12 @@ macro_rules! impl_struct{
 macro_rules! impl_bitfield {
     ($name:ty) => {
         impl ParseData for enumflags2::BitFlags<$name> {
-            fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
+            fn parse_read(b: &[u8]) -> crate::parse::Result<(&[u8], Self)> {
                 let (b, v) = ParseData::parse_read(b)?;
                 Ok((b, Self::from_bits_truncate(v)))
             }
 
-            fn parse_write<W: std::io::Write>(&self, b: &mut W) -> Result<()> {
+            fn parse_write<W: std::io::Write>(&self, b: &mut W) -> crate::parse::Result<()> {
                 ParseData::parse_write(&self.bits(), b)
             }
         }
