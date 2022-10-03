@@ -133,7 +133,7 @@ async fn run() -> Result<()> {
                 let x = x?;
                 pending_read_bytes.extend(&port_read_buffer[..x]);
                 find_message(&mut pending_read_bytes);
-                if let Some(x) = GpsMsg::message_usage(&pending_read_bytes){
+                while let Some(x) = GpsMsg::message_usage(&pending_read_bytes){
 
                     let mut buf = pending_read_bytes.split_off(x);
                     std::mem::swap(&mut buf,&mut pending_read_bytes);
@@ -142,6 +142,7 @@ async fn run() -> Result<()> {
                     outgoing_connection.try_send_message(&buf).await;
                     connections.send(buf).await.unwrap();
                     connections.flush().await.unwrap();
+                    find_message(&mut pending_read_bytes);
                 }
             },
             x = outgoing_connection_future => {

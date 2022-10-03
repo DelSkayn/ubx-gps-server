@@ -206,6 +206,7 @@ impl Stream for ConnectionPool {
                 Poll::Pending => {}
             }
 
+            // reverse to make swap remove work
             for i in (0..this.connections.len()).rev() {
                 match this.connections[i].as_mut().poll_next(cx) {
                     Poll::Ready(Some(Ok(x))) => return Poll::Ready(Some(x)),
@@ -371,6 +372,29 @@ impl Stream for Connection {
         let this = self.project();
 
         loop {
+            if this.pending.is_none() && this.buffer.len() >= 4 {
+                let array = <[u8; 4]>::try_from(&this.buffer[..4]).unwrap();
+                let len = u32::from_le_bytes(array);
+                // if we already have enough space immedialty return the buffer.
+                if this.buffer.len() >= len as usize + 4 {
+                    let mut res = this.buffer.split_off(len as usize + 4);
+                    std::mem::swap(&mut res, this.buffer);
+                    return Poll::Ready(Some(Ok(res)));
+                }
+                // shift the len bytes out
+                this.buffer.shift(4);
+                *this.pending = Some(len);
+            }
+
+            if let Some(pending) = this.pending.take() {
+                if this.buffer.len() >= pending as usize {
+                    let mut res = this.buffer.split_off(pending as usize);
+                    std::mem::swap(&mut res, this.buffer);
+                    return Poll::Ready(Some(Ok(res)));
+                }
+                *this.pending = Some(pending);
+            }
+
             let mut buffer = ReadBuf::uninit(this.read_buffer);
             match this.tcp.as_mut().poll_read(cx, &mut buffer) {
                 Poll::Ready(Err(e)) => return Poll::Ready(Some(Err(e))),
@@ -382,27 +406,6 @@ impl Stream for Connection {
                     this.buffer.extend(filled);
                 }
                 Poll::Pending => return Poll::Pending,
-            }
-
-            if this.pending.is_none() && this.buffer.len() >= 4 {
-                match <[u8; 4]>::try_from(&this.buffer[..4]) {
-                    Ok(x) => {
-                        this.buffer.shift(4);
-                        *this.pending = Some(u32::from_le_bytes(x));
-                    }
-                    Err(_) => {
-                        continue;
-                    }
-                }
-            }
-
-            if let Some(pending) = this.pending.take() {
-                if this.buffer.len() >= pending as usize {
-                    let mut res = this.buffer.split_off(pending as usize);
-                    std::mem::swap(&mut res, this.buffer);
-                    return Poll::Ready(Some(Ok(res)));
-                }
-                *this.pending = Some(pending);
             }
         }
     }
