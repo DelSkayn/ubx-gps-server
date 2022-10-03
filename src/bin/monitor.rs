@@ -197,6 +197,23 @@ impl Info {
             self.writer.next_line();
         }
 
+        if let Some(x) = self.error.as_ref() {
+            write!(
+                &mut self.writer,
+                "{}",
+                termion::color::Fg(termion::color::Red)
+            )?;
+            self.writer.write_line("ERROR: ");
+            self.writer.write_line(&x);
+            write!(
+                &mut self.writer,
+                "{}",
+                termion::color::Fg(termion::color::Reset)
+            )?;
+            self.writer.next_line();
+            self.writer.next_line();
+        }
+
         let height = self.writer.size.1;
         let offset = height / 2;
         self.writer.goto((0, offset));
@@ -229,6 +246,7 @@ impl Info {
         self.last_itow = Some(itow);
         self.prev_acked_rtcm.clear();
         std::mem::swap(&mut self.prev_acked_rtcm, &mut self.acked_rtcm);
+        self.error.take();
     }
 
     fn handle_msg(&mut self, msg: &GpsMsg) {

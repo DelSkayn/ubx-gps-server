@@ -375,12 +375,6 @@ impl Stream for Connection {
             if this.pending.is_none() && this.buffer.len() >= 4 {
                 let array = <[u8; 4]>::try_from(&this.buffer[..4]).unwrap();
                 let len = u32::from_le_bytes(array);
-                // if we already have enough space immedialty return the buffer.
-                if this.buffer.len() >= len as usize + 4 {
-                    let mut res = this.buffer.split_off(len as usize + 4);
-                    std::mem::swap(&mut res, this.buffer);
-                    return Poll::Ready(Some(Ok(res)));
-                }
                 // shift the len bytes out
                 this.buffer.shift(4);
                 *this.pending = Some(len);

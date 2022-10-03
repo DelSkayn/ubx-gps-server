@@ -25,7 +25,13 @@ macro_rules! impl_class {
                 let (b,msg) = u8::parse_read(b)?;
                 match msg{
                     $($e => {
-                        $(let b = crate::parse::tag(b,($len as u16)).map_invalid(crate::parse::Error::InvalidLen)?;)*
+                        $(let b = crate::parse::tag(b,($len as u16))
+                            .map_invalid(crate::parse::Error::InvalidLen)
+                            .map_err(|e| {
+                                println!("invalid len {}",stringify!($class));
+                                e
+                            })
+                            ?;)*
                         let (b,res) = <$t>::parse_read(b)?;
                         Ok((b,Self::$var(res)))
                     })*
