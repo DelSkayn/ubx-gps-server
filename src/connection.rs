@@ -86,8 +86,15 @@ impl Stream for OutgoingConnection {
                 },
                 OutgoingConnectionState::Connecting(ref mut x) => match x.poll_unpin(cx) {
                     Poll::Ready(Ok(x)) => {
-                        let connection = Connection::new(x);
-                        *this.connection = OutgoingConnectionState::Connected(Box::pin(connection));
+                        if let Err(e) = x.set_nodelay(true) {
+                            error!("error setting connection to nodelay {e}");
+                            let wait = tokio::time::sleep(Duration::from_secs_f32(0.5));
+                            *this.connection = OutgoingConnectionState::Waiting(Box::pin(wait));
+                        } else {
+                            let connection = Connection::new(x);
+                            *this.connection =
+                                OutgoingConnectionState::Connected(Box::pin(connection));
+                        }
                     }
                     Poll::Ready(Err(e)) => {
                         error!("error connecting to outgoing server {}", e);
@@ -186,6 +193,10 @@ impl Stream for ConnectionPool {
             match this.listener.poll_accept(cx) {
                 Poll::Ready(Ok((x, addr))) => {
                     info!("new connection from {}", addr);
+                    if let Err(e) = x.set_nodelay(true) {
+                        error!("error setting no delay for connection {e}");
+                        continue;
+                    }
                     this.connections.push(Box::pin(Connection::new(x)));
                     continue;
                 }
