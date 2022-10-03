@@ -10,7 +10,7 @@ use gps::{
     VecExt,
 };
 
-use log::{info, trace};
+use log::{info, trace, warn};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -27,6 +27,7 @@ fn find_message(b: &mut Vec<u8>) {
     let mut idx = 1;
     while b.len() > idx {
         if GpsMsg::contains_prefix(&b[idx..]) {
+            warn!("skipped over {idx} bytes");
             b.shift(idx);
             return;
         }

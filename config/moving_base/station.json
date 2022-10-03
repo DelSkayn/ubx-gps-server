@@ -44,6 +44,8 @@
   { "kind": "signal-glo-l2-ena", "value": false },
 
   { "kind": "msgout-ubx-nav-pvt-usb", "value":1 },
+  { "kind": "msgout-ubx-nav-rel-pos-ned-usb", "value":0 },
+  { "kind": "msgout-ubx-mon-comms-usb", "value":1 },
 
   { "kind": "msgout-rtcm3x-type1005-usb", "value":0 },
   { "kind": "msgout-rtcm3x-type1074-usb", "value":1 },

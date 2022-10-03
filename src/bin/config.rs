@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use clap::{arg, Command};
+use clap::{arg, ArgAction, ArgMatches, Command};
 use enumflags2::BitFlags;
 use futures::StreamExt;
 use gps::{
@@ -42,10 +42,18 @@ async fn reconnect(mut tcp: Connection) -> Result<()> {
     Ok(())
 }
 
-async fn reset(mut tcp: Connection) -> Result<()> {
+async fn reset(mut tcp: Connection, matches: &ArgMatches) -> Result<()> {
+    let cold = matches.get_one::<bool>("cold").unwrap();
+
+    let nav_bbr_mask = if *cold {
+        BitFlags::<BbrMask>::all()
+    } else {
+        BbrMask::Ephemeris.into()
+    };
+
     let msg = ubx::Ubx::Cfg(Cfg::Rst(Rst {
         reset_mode: ubx::cfg::ResetMode::HardwareImmediately,
-        nav_bbr_mask: BitFlags::<BbrMask>::all(),
+        nav_bbr_mask,
         res1: 0,
     }));
     let bytes = msg.parse_to_vec().unwrap();
@@ -193,7 +201,10 @@ async fn run() -> Result<()> {
         .subcommand(Command::new("set").arg(arg!(
             <FILE> "the file to read the configuration from"
         )))
-        .subcommand(Command::new("reset"))
+        .subcommand(
+            Command::new("reset")
+                .arg(arg!(-c --cold "do a cold reset of the device").action(ArgAction::SetTrue)),
+        )
         .subcommand(Command::new("reconnect"))
         .subcommand_required(true)
         .get_matches();
@@ -219,8 +230,8 @@ async fn run() -> Result<()> {
             let file = sub_m.get_one::<String>("FILE").unwrap();
             set(tcp, file).await?;
         }
-        Some(("reset", _)) => {
-            reset(tcp).await?;
+        Some(("reset", sub_m)) => {
+            reset(tcp, sub_m).await?;
         }
         Some(("reconnect", _)) => {
             reconnect(tcp).await?;

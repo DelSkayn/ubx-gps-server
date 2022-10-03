@@ -5,7 +5,7 @@
   {"kind": "usb-inprot-rtcm3x", "value":true},
   {"kind": "usb-outprot-ubx", "value":true},
 
-  {"kind": "rate-meas", "value":  50},
+  {"kind": "rate-meas", "value":  1000},
 
   { "kind": "spi-outprot-ubx", "value": false },
   { "kind": "spi-outprot-nmea", "value":false }, 

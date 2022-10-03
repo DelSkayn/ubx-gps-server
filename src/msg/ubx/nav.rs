@@ -225,11 +225,11 @@ impl ParseData for FixType {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct FixStatus {
-    car_sol: CarrierPhaseSol,
-    head_veh_valid: bool,
-    psm_state: PsmState,
-    diff_soln: bool,
-    gnss_fix_ok: bool,
+    pub car_sol: CarrierPhaseSol,
+    pub head_veh_valid: bool,
+    pub psm_state: PsmState,
+    pub diff_soln: bool,
+    pub gnss_fix_ok: bool,
 }
 
 impl ParseData for FixStatus {
