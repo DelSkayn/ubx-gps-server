@@ -11,7 +11,7 @@ use gps::{
     msg::GpsMsg,
     parse::ParseData,
 };
-use log::{error, trace};
+use log::{error, info, trace};
 use tokio::net::TcpListener;
 
 async fn run() -> Result<()> {
@@ -66,6 +66,7 @@ async fn run() -> Result<()> {
             .context("failed to create a deamon")?;
     }
 
+    info!("starting parsing server");
     loop {
         match future::select(connections.next(), outgoing.next()).await {
             // Just to ensure that connections are accepting, messages are ignored.
@@ -102,7 +103,9 @@ async fn run() -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    env_logger::init();
+    env_logger::init_from_env(
+        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
+    );
 
     tokio::runtime::Builder::new_current_thread()
         .enable_all()

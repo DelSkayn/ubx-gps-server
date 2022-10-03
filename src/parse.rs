@@ -204,6 +204,12 @@ pub trait ParseData: Sized {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)>;
 
     fn parse_write<W: Write>(&self, b: &mut W) -> Result<()>;
+
+    fn parse_to_vec(&self) -> Result<Vec<u8>> {
+        let mut res = Vec::new();
+        self.parse_write(&mut res)?;
+        Ok(res)
+    }
 }
 
 impl ParseData for u64 {

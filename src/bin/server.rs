@@ -5,12 +5,12 @@ use clap::{arg, value_parser, ArgAction, Command};
 use futures::{FutureExt, SinkExt, StreamExt};
 use gps::{
     connection::{ConnectionPool, OutgoingConnection},
-    msg::GpsMsg,
+    msg::{self, GpsMsg},
     parse::ParseData,
     VecExt,
 };
 
-use log::trace;
+use log::{info, trace};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -102,7 +102,7 @@ async fn run() -> Result<()> {
         .stop_bits(StopBits::One)
         .timeout(Duration::from_secs(1));
 
-    let mut port = SerialStream::open(&port).context("failed to open serial port")?;
+    let mut port = Some(SerialStream::open(&port).context("failed to open serial port")?);
 
     let listener = TcpListener::bind((address.as_str(), server_port))
         .await
@@ -121,9 +121,10 @@ async fn run() -> Result<()> {
     let mut port_read_buffer = [0u8; 4096];
     let mut pending_read_bytes = Vec::new();
 
+    info!("entering server loop");
     loop {
         let mut outgoing_connection_future = Box::pin(outgoing_connection.next());
-        let mut device_future = Box::pin(port.read(&mut port_read_buffer).fuse());
+        let mut device_future = Box::pin(port.as_mut().unwrap().read(&mut port_read_buffer).fuse());
         let mut connection_future = connections.next();
 
         futures::select! {
@@ -145,21 +146,66 @@ async fn run() -> Result<()> {
             x = outgoing_connection_future => {
                 let x = x.unwrap();
                 trace!("message from outgoing {:?}",GpsMsg::parse_read(&x));
-                port.write_all(&x).await.context("error writing to device")?;
-                port.flush().await.context("error writing to device")?;
+                if let Ok((_,x)) = msg::Server::parse_read(&x){
+                    match x.msg{
+                        msg::server::ServerMsg::Quit => {
+                            info!("quiting");
+                            return Ok(())
+                        }
+                        msg::server::ServerMsg::ResetPort => {
+                            port.take();
+
+                            tokio::time::sleep(Duration::from_secs_f32(0.5)).await;
+
+                            let port_builder = tokio_serial::new(port_path, port_baud)
+                                .data_bits(DataBits::Eight)
+                                .parity(Parity::None)
+                                .stop_bits(StopBits::One)
+                                .timeout(Duration::from_secs(1));
+
+                            port = Some(SerialStream::open(&port_builder).context("failed to open serial port")?);
+                        }
+                    }
+                }else{
+                    port.as_mut().unwrap().write_all(&x).await.context("error writing to device")?;
+                    port.as_mut().unwrap().flush().await.context("error writing to device")?;
+                }
             },
             x = connection_future => {
                 let x = x.unwrap();
                 trace!("message from connection {:?}",GpsMsg::parse_read(&x));
-                port.write_all(&x).await.context("error writing to device")?;
-                port.flush().await.context("error writing to device")?;
+                if let Ok((_,x)) = msg::Server::parse_read(&x){
+                    match x.msg{
+                        msg::server::ServerMsg::Quit => {
+                            info!("quiting");
+                            return Ok(())},
+                        msg::server::ServerMsg::ResetPort => {
+                            port.take();
+
+                            tokio::time::sleep(Duration::from_secs_f32(0.5)).await;
+
+                            let port_builder = tokio_serial::new(port_path, port_baud)
+                                .data_bits(DataBits::Eight)
+                                .parity(Parity::None)
+                                .stop_bits(StopBits::One)
+                                .timeout(Duration::from_secs(1));
+
+                            port = Some(SerialStream::open(&port_builder).context("failed to open serial port")?);
+                        }
+                    }
+                }else{
+                    port.as_mut().unwrap().write_all(&x).await.context("error writing to device")?;
+                    port.as_mut().unwrap().flush().await.context("error writing to device")?;
+                }
             }
         }
     }
 }
 
 fn main() -> Result<()> {
-    env_logger::init();
+    env_logger::init_from_env(
+        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
+    );
 
     tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -19,6 +19,7 @@ log = "0.4.17"
 hyper = {version = "0.14.20", features = ["http1","client","tcp"]}
 pin-project = "1.0.12"
 libc = "0.2.133"
+termion = "1.5.6"
 
 [workspace]
 members = [

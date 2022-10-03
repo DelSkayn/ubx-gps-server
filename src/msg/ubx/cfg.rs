@@ -222,10 +222,55 @@ impl ParseData for ValSet {
     }
 }
 
+#[bitflags]
+#[repr(u16)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BbrMask {
+    Ephemeris = 0b1,
+    Almanac = 0b10,
+    Health = 0b100,
+    Klobuchar = 0b1000,
+    Position = 0b10000,
+    ClockDrift = 0b100000,
+    Oscillator = 0b1000000,
+    Utc = 0b10000000,
+    Rtc = 0b100000000,
+    Aop = 0b1000000000,
+}
+
+impl_bitfield!(BbrMask);
+
+impl_enum! {
+pub enum ResetMode: u8{
+    HardwareImmediately = 0,
+    ControlledSoftware = 1,
+    ControlledSoftwareGnss = 2,
+    Hardware = 4,
+    ControlledGnssStop = 8,
+    ControlledGnssStart = 9
+}
+}
+
+impl Default for ResetMode {
+    fn default() -> Self {
+        ResetMode::HardwareImmediately
+    }
+}
+
+impl_struct! {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct Rst {
+    nav_bbr_mask: BitFlags<BbrMask>,
+    reset_mode: ResetMode,
+    res1: u8,
+}
+}
+
 impl_class! {
     pub enum Cfg: PollCfg {
         TMode3(TMode3)[40] = 0x71,
         ValGet(ValGet) = 0x8b,
         ValSet(ValSet) = 0x8a,
+        Rst(Rst)[4] = 0x04,
     }
 }
