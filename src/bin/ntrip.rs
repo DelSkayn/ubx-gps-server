@@ -2,6 +2,7 @@ use std::{net::SocketAddr, str::FromStr};
 
 use anyhow::{anyhow, bail, Context as ErrorContext, Result};
 use clap::{arg, Command};
+use futures::{future, SinkExt, StreamExt};
 use gps::{connection::Connection, msg::Rtcm, parse::ParseData, VecExt};
 use hyper::{body::HttpBody, Body, Client, Request, Uri};
 use log::{debug, trace, warn};
@@ -79,7 +80,14 @@ async fn run() -> Result<()> {
         .await
         .context("could not create connection to server")?;
 
-    let mut connection = Connection::new(tcp);
+    let connection = Connection::new(tcp);
+
+    let (mut sink, stream) = connection.split();
+
+    //eat the incomming messages
+    tokio::spawn(async {
+        stream.skip_while(|_| future::ready(true)).count().await;
+    });
 
     let mut buffer = Vec::new();
     loop {
@@ -102,7 +110,7 @@ async fn run() -> Result<()> {
                 trace!("writing message: {:?}", Rtcm::parse_read(&buffer));
                 let mut b = buffer.split_off(x);
                 std::mem::swap(&mut b, &mut buffer);
-                connection.write_message(&b).await?;
+                sink.send(b).await?;
             } else {
                 break;
             }

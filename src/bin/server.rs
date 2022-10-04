@@ -134,6 +134,7 @@ async fn run() -> Result<()> {
                 pending_read_bytes.extend(&port_read_buffer[..x]);
                 find_message(&mut pending_read_bytes);
                 while let Some(x) = GpsMsg::message_usage(&pending_read_bytes){
+                    trace!("found message with length {}",x);
 
                     let mut buf = pending_read_bytes.split_off(x);
                     std::mem::swap(&mut buf,&mut pending_read_bytes);
