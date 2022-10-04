@@ -1,6 +1,7 @@
+use anyhow::bail;
 use serde::{Deserialize, Serialize};
 
-use crate::parse::{self, Error, ParseData};
+use crate::parse::{self, ParseData, ParseError};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Rtcm {
@@ -84,22 +85,22 @@ impl Rtcm {
 impl ParseData for Rtcm {
     fn parse_read(b: &[u8]) -> crate::parse::Result<(&[u8], Self)> {
         if b.len() < 6 {
-            return Err(Error::NotEnoughData);
+            bail!(ParseError::NotEnoughData);
         }
 
         if b[0] != Self::RTCM_PREAMBLE {
-            return Err(Error::InvalidHeader);
+            bail!(ParseError::InvalidHeader);
         }
 
         let size = Self::get_bits(b, 14, 10) as usize + 3; // 3 for header;
         let kind = Self::get_bits(b, 24, 12) as u16;
 
         if b.len() < size + 3 {
-            return Err(Error::NotEnoughData);
+            bail!(ParseError::NotEnoughData);
         }
 
         if Self::crc24(&b[..size]) != Self::get_bits(b, size * 8, 24) {
-            return Err(Error::InvalidChecksum);
+            bail!(ParseError::InvalidChecksum);
         }
 
         let (b, data) = parse::collect(b, size + 3)?;

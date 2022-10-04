@@ -18,6 +18,13 @@ impl<T: Copy> VecExt for Vec<T> {
 }
 
 pub fn deamonize() -> Result<(), ()> {
+    let res = unsafe { libc::fork() };
+    match res {
+        -1 => return Err(()),
+        0 => {}
+        _ => std::process::exit(0),
+    }
+
     let res = unsafe { libc::setsid() };
     match res {
         -1 => return Err(()),

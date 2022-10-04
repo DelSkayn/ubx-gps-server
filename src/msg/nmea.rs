@@ -2,7 +2,7 @@ use std::io::Write;
 
 use serde::{Deserialize, Serialize};
 
-use crate::parse::{self, Error, ParseData, Result};
+use crate::parse::{self, ParseData, ParseError, Result};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Nmea(String);
@@ -39,10 +39,10 @@ impl ParseData for Nmea {
         res.push('$');
         loop {
             (b, next) = u8::parse_read(b)?;
-            res.push(char::try_from(next).map_err(|_| Error::Invalid)?);
+            res.push(char::try_from(next).map_err(|_| ParseError::Invalid)?);
             if next == b'\r' {
                 (b, next) = u8::parse_read(b)?;
-                res.push(char::try_from(next).map_err(|_| Error::Invalid)?);
+                res.push(char::try_from(next).map_err(|_| ParseError::Invalid)?);
                 if next == b'\n' {
                     break;
                 }

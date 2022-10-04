@@ -5,7 +5,7 @@
   {"kind": "usb-inprot-rtcm3x", "value":true},
   {"kind": "usb-outprot-ubx", "value":true},
 
-  {"kind": "rate-meas", "value":  50},
+  {"kind": "rate-meas", "value":  250},
 
   { "kind": "spi-outprot-ubx", "value": false },
   { "kind": "spi-outprot-nmea", "value":false }, 
@@ -27,21 +27,21 @@
   { "kind": "signal-gps-l1ca-ena", "value": true },
   { "kind": "signal-gps-l2c-ena", "value": true },
 
-  { "kind": "signal-gal-ena", "value": false },
-  { "kind": "signal-gal-e1-ena", "value": false },
-  { "kind": "signal-gal-e5b-ena", "value": false },
+  { "kind": "signal-gal-ena", "value": true },
+  { "kind": "signal-gal-e1-ena", "value": true },
+  { "kind": "signal-gal-e5b-ena", "value": true },
 
-  { "kind": "signal-bds-ena", "value": false },
-  { "kind": "signal-bds-b1-ena", "value": false },
-  { "kind": "signal-bds-b2-ena", "value": false },
+  { "kind": "signal-bds-ena", "value": true },
+  { "kind": "signal-bds-b1-ena", "value": true },
+  { "kind": "signal-bds-b2-ena", "value": true },
 
-  { "kind": "signal-qzss-ena", "value": false },
-  { "kind": "signal-qzss-l1ca-ena", "value": false },
-  { "kind": "signal-qzss-l2c-ena", "value": false },
+  { "kind": "signal-qzss-ena", "value": true},
+  { "kind": "signal-qzss-l1ca-ena", "value": true },
+  { "kind": "signal-qzss-l2c-ena", "value": true },
 
-  { "kind": "signal-glo-ena", "value": false },
-  { "kind": "signal-glo-l1-ena", "value": false },
-  { "kind": "signal-glo-l2-ena", "value": false },
+  { "kind": "signal-glo-ena", "value": true },
+  { "kind": "signal-glo-l1-ena", "value": true },
+  { "kind": "signal-glo-l2-ena", "value": true },
 
   { "kind": "msgout-ubx-nav-rel-pos-ned-usb", "value":1 },
   { "kind": "msgout-ubx-rxm-rtcm-usb", "value":1 }

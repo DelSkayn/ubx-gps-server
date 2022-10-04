@@ -2,8 +2,9 @@ use std::io::Write;
 
 use crate::{
     impl_bitfield, impl_enum, impl_struct,
-    parse::{ser_bitflags, Error, ParseData, Result},
+    parse::{ser_bitflags, ParseData, ParseError, Result},
 };
+use anyhow::bail;
 use enumflags2::{bitflags, BitFlags};
 use serde::{Deserialize, Serialize};
 
@@ -125,7 +126,7 @@ impl ParseData for ValGet {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
         let (b, len) = u16::parse_read(b)?;
         if b.len() < len as usize {
-            return Err(Error::NotEnoughData);
+            bail!(ParseError::NotEnoughData);
         }
         let (b, rem) = b.split_at(len.into());
         let (b, version) = u8::parse_read(b)?;
@@ -138,7 +139,7 @@ impl ParseData for ValGet {
                 let (_, res) = ValGetResponse::parse_read(b)?;
                 Ok((rem, Self::Response(res)))
             }
-            _ => Err(Error::Invalid),
+            _ => bail!(ParseError::Invalid),
         }
     }
 
@@ -154,7 +155,7 @@ impl ParseData for ValGet {
                 x.parse_write(&mut buffer).unwrap();
             }
         }
-        let len = u16::try_from(buffer.len()).map_err(|_| Error::InvalidLen)?;
+        let len = u16::try_from(buffer.len()).map_err(|_| ParseError::InvalidLen)?;
         len.parse_write(b)?;
         b.write_all(&buffer)?;
         Ok(())
@@ -186,12 +187,12 @@ impl ParseData for ValSet {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
         let (b, len) = u16::parse_read(b)?;
         if b.len() < len as usize {
-            return Err(Error::NotEnoughData);
+            bail!(ParseError::NotEnoughData);
         }
         let (b, rem) = b.split_at(len.into());
         let (b, version) = u8::parse_read(b)?;
         if version != 0 {
-            return Err(Error::Invalid);
+            bail!(ParseError::Invalid);
         }
         let (b, layers) = ParseData::parse_read(b)?;
         let (b, res1) = ParseData::parse_read(b)?;
@@ -215,7 +216,7 @@ impl ParseData for ValSet {
         self.res1.parse_write(&mut buffer).unwrap();
         self.values.parse_write(&mut buffer).unwrap();
 
-        let len = u16::try_from(buffer.len()).map_err(|_| Error::InvalidLen)?;
+        let len = u16::try_from(buffer.len()).map_err(|_| ParseError::InvalidLen)?;
         len.parse_write(b)?;
         b.write_all(&buffer)?;
         Ok(())

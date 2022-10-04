@@ -60,8 +60,8 @@ impl ParseData for Comms {
     }
 
     fn parse_write<W: std::io::Write>(&self, b: &mut W) -> crate::parse::Result<()> {
-        let len =
-            u16::try_from(self.blocks.len() * 40 + 8).map_err(|_| crate::parse::Error::Invalid)?;
+        let len = u16::try_from(self.blocks.len() * 40 + 8)
+            .map_err(|_| crate::parse::ParseError::Invalid)?;
         len.parse_write(b)?;
         self.version.parse_write(b)?;
         self.n_ports.parse_write(b)?;

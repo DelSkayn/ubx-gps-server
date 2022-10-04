@@ -1,8 +1,4 @@
-use std::{
-    fmt,
-    io::{self, Write},
-    result::Result as StdResult,
-};
+use std::{fmt, io::Write, result::Result as StdResult};
 
 pub mod ser_bitflags {
     use enumflags2::{BitFlag, BitFlags};
@@ -78,8 +74,11 @@ macro_rules! impl_struct{
         }
 
         impl ParseData for $name {
-            fn parse_read(b: &[u8]) -> crate::parse::Result<(&[u8], Self)> {
-                $(let (b,$field) = <$ty>::parse_read(b)?;)*
+            fn parse_read(b: &[u8]) -> anyhow::Result<(&[u8], Self)> {
+
+                use anyhow::Context as ErrorContext;
+                $(let (b,$field) = <$ty>::parse_read(b)
+                    .context(concat!("failed to parse field ",stringify!($field)," struct ",stringify!($name)))?;)*
                 Ok((b,$name{
                     $($field,)*
                 }))
@@ -121,23 +120,26 @@ macro_rules! impl_enum{
         }
 
         impl ParseData for $name{
-            fn parse_read(b: &[u8]) -> Result<(&[u8], Self)>{
+            fn parse_read(b: &[u8]) -> crate::parse::Result<(&[u8], Self)>{
+                use anyhow::{Context as ErrorContext,anyhow};
+
                 let (b,v) = $repr::parse_read(b)?;
                 match v{
                     $($v => Ok((b,Self::$kind)),)*
-                    _  => return Err(Error::Invalid)
+                    _  => Err(anyhow!(ParseError::Invalid))
+                    .context(concat!("failed to parse enum `",stringify!($name),"`"))
                 }
             }
 
-            fn parse_write<W: std::io::Write>(&self, b: &mut W) -> Result<()> {
+            fn parse_write<W: std::io::Write>(&self, b: &mut W) -> crate::parse::Result<()> {
                 ParseData::parse_write(&(*self as $repr),b)
             }
         }
     }
 }
 
-#[derive(Debug)]
-pub enum Error {
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+pub enum ParseError {
     NotEnoughData,
     InvalidChecksum,
     InvalidHeader,
@@ -145,44 +147,50 @@ pub enum Error {
     InvalidMsg(u8),
     InvalidLen,
     Invalid,
-    Io(io::Error),
 }
 
-impl fmt::Display for Error {
+impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            Error::NotEnoughData => write!(f, "not enough data in buffer to parse structure"),
-            Error::InvalidChecksum => write!(f, "checksum is not valid"),
-            Error::InvalidHeader => write!(f, "header is not valid"),
-            Error::InvalidClass(x) => write!(f, "encountered unknown ubx message class `{}`", x),
-            Error::InvalidMsg(x) => write!(f, "encountered unknown ubx message id `{}`", x),
-            Error::InvalidLen => write!(f, "ubx message length is not as specified in spec"),
-            Error::Invalid => write!(f, "failed to parse buffer"),
-            Error::Io(ref e) => write!(f, "io error: {}", e),
+            ParseError::NotEnoughData => write!(f, "not enough data in buffer to parse structure"),
+            ParseError::InvalidChecksum => write!(f, "checksum is not valid"),
+            ParseError::InvalidHeader => write!(f, "header is not valid"),
+            ParseError::InvalidClass(x) => {
+                write!(f, "encountered unknown ubx message class `{}`", x)
+            }
+            ParseError::InvalidMsg(x) => write!(f, "encountered unknown ubx message id `{}`", x),
+            ParseError::InvalidLen => write!(f, "ubx message length is not as specified in spec"),
+            ParseError::Invalid => write!(f, "failed to parse buffer"),
         }
     }
 }
 
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Self::Io(e)
-    }
-}
+impl std::error::Error for ParseError {}
 
-impl std::error::Error for Error {}
-
-pub type Result<T> = StdResult<T, Error>;
+pub type Result<T> = StdResult<T, anyhow::Error>;
 
 pub trait ResultExt {
-    fn map_invalid(self, e: Error) -> Self;
+    fn map_invalid<E: Into<anyhow::Error>>(self, e: E) -> Self;
 }
 
 impl<T> ResultExt for Result<T> {
-    fn map_invalid(self, e: Error) -> Self {
+    fn map_invalid<E: Into<anyhow::Error>>(self, e: E) -> Self {
         match self {
-            Err(Error::Invalid) => Err(e),
+            Err(er) if er.downcast_ref::<ParseError>().copied() == Some(ParseError::Invalid) => {
+                Err(e.into())
+            }
             x => x,
         }
+    }
+}
+
+pub trait ErrorExt {
+    fn not_enough_data(&self) -> bool;
+}
+
+impl ErrorExt for anyhow::Error {
+    fn not_enough_data(&self) -> bool {
+        self.downcast_ref::<ParseError>().copied() == Some(ParseError::NotEnoughData)
     }
 }
 
@@ -201,7 +209,7 @@ impl Offset for [u8] {
 }
 
 pub trait ParseData: Sized {
-    fn parse_read(b: &[u8]) -> Result<(&[u8], Self)>;
+    fn parse_read(b: &[u8]) -> anyhow::Result<(&[u8], Self)>;
 
     fn parse_write<W: Write>(&self, b: &mut W) -> Result<()>;
 
@@ -215,7 +223,7 @@ pub trait ParseData: Sized {
 impl ParseData for u64 {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
         if b.len() < 8 {
-            return Err(Error::NotEnoughData)?;
+            return Err(ParseError::NotEnoughData)?;
         }
         let d = [b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]];
         let d = u64::from_le_bytes(d);
@@ -231,7 +239,7 @@ impl ParseData for u64 {
 impl ParseData for u32 {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
         if b.len() < 4 {
-            return Err(Error::NotEnoughData)?;
+            return Err(ParseError::NotEnoughData)?;
         }
         let d = [b[0], b[1], b[2], b[3]];
         let d = u32::from_le_bytes(d);
@@ -247,7 +255,7 @@ impl ParseData for u32 {
 impl ParseData for u16 {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
         if b.len() < 2 {
-            return Err(Error::NotEnoughData)?;
+            return Err(ParseError::NotEnoughData)?;
         }
         let d = [b[0], b[1]];
         let d = u16::from_le_bytes(d);
@@ -263,7 +271,7 @@ impl ParseData for u16 {
 impl ParseData for u8 {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
         if b.is_empty() {
-            return Err(Error::NotEnoughData);
+            return Err(ParseError::NotEnoughData.into());
         }
         Ok((&b[1..], b[0]))
     }
@@ -277,7 +285,7 @@ impl ParseData for u8 {
 impl ParseData for i32 {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
         if b.len() < 4 {
-            return Err(Error::NotEnoughData)?;
+            return Err(ParseError::NotEnoughData)?;
         }
         let d = [b[0], b[1], b[2], b[3]];
         let d = i32::from_le_bytes(d);
@@ -293,7 +301,7 @@ impl ParseData for i32 {
 impl ParseData for i16 {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
         if b.len() < 2 {
-            return Err(Error::NotEnoughData)?;
+            return Err(ParseError::NotEnoughData)?;
         }
         let d = [b[0], b[1]];
         let d = i16::from_le_bytes(d);
@@ -308,7 +316,7 @@ impl ParseData for i16 {
 
 impl ParseData for i8 {
     fn parse_read(b: &[u8]) -> Result<(&[u8], Self)> {
-        let d = *b.first().ok_or(Error::NotEnoughData)?;
+        let d = *b.first().ok_or(ParseError::NotEnoughData)?;
         Ok((&b[1..], d as i8))
     }
 
@@ -360,7 +368,7 @@ impl<T: ParseData> ParseData for Vec<T> {
                     res.push(v);
                     b = bn;
                 }
-                Err(Error::NotEnoughData) => return Err(Error::Invalid),
+                Err(e) if e.not_enough_data() => return Err(ParseError::Invalid.into()),
                 Err(x) => return Err(x),
             }
         }
@@ -381,7 +389,7 @@ pub fn tag<T: ParseData + PartialEq>(b: &[u8], tag: T) -> Result<&[u8]> {
     if t == tag {
         Ok(b)
     } else {
-        Err(Error::Invalid)
+        Err(ParseError::Invalid.into())
     }
 }
 
@@ -397,7 +405,7 @@ pub fn collect<T: ParseData>(mut b: &[u8], cnt: usize) -> Result<(&[u8], Vec<T>)
 
 pub fn eat<T: ParseData>(b: &[u8], len: usize) -> Result<&[u8]> {
     if b.len() < len {
-        Err(Error::NotEnoughData)
+        Err(ParseError::NotEnoughData.into())
     } else {
         Ok(&b[len..])
     }

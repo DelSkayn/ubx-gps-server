@@ -2,8 +2,9 @@ use std::io::Write;
 
 use crate::{
     impl_bitfield, impl_struct,
-    parse::{ser_bitflags, Error, ParseData, Result},
+    parse::{ser_bitflags, ParseData, ParseError, Result},
 };
+use anyhow::bail;
 use enumflags2::{bitflags, BitFlags};
 use serde::{Deserialize, Serialize};
 
@@ -242,14 +243,14 @@ impl ParseData for FixStatus {
             3 => PsmState::Tracking,
             4 => PsmState::PowerOptimizedTracking,
             5 => PsmState::Inactive,
-            _ => return Err(Error::Invalid),
+            _ => bail!(ParseError::Invalid),
         };
 
         let car_sol = match (data >> 6) & 0b11 {
             0 => CarrierPhaseSol::NoSolution,
             1 => CarrierPhaseSol::Float,
             2 => CarrierPhaseSol::Fixed,
-            _ => return Err(Error::Invalid),
+            _ => bail!(ParseError::Invalid),
         };
 
         Ok((

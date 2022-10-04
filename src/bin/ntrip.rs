@@ -89,19 +89,23 @@ async fn run() -> Result<()> {
             .ok_or_else(|| anyhow!("ntrip caster disconnected"))?
             .context("reading error")?;
         buffer.extend_from_slice(&data);
-        let mut idx = 0;
-        while buffer.len() > idx && buffer.len() > 2 && !Rtcm::contains_prefix(&buffer[idx..]) {
-            idx += 1;
-        }
-        if idx != 0 {
-            warn!("skipping {idx} bytes");
-            buffer.shift(idx);
-        }
-        if let Some(x) = Rtcm::message_usage(&buffer) {
-            trace!("writing message: {:?}", Rtcm::parse_read(&buffer));
-            let mut b = buffer.split_off(x);
-            std::mem::swap(&mut b, &mut buffer);
-            connection.write_message(&b).await?;
+        loop {
+            let mut idx = 0;
+            while buffer.len() > idx && buffer.len() > 2 && !Rtcm::contains_prefix(&buffer[idx..]) {
+                idx += 1;
+            }
+            if idx != 0 {
+                warn!("skipping {idx} bytes");
+                buffer.shift(idx);
+            }
+            if let Some(x) = Rtcm::message_usage(&buffer) {
+                trace!("writing message: {:?}", Rtcm::parse_read(&buffer));
+                let mut b = buffer.split_off(x);
+                std::mem::swap(&mut b, &mut buffer);
+                connection.write_message(&b).await?;
+            } else {
+                break;
+            }
         }
     }
 }

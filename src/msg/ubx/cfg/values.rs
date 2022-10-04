@@ -4,7 +4,7 @@ use std::io::Write;
 
 use crate::{
     impl_bitfield, impl_enum,
-    parse::{ser_bitflags, Error, ParseData, Result},
+    parse::{ser_bitflags, ParseData, ParseError, Result},
 };
 
 use clap::ValueEnum;
@@ -55,7 +55,7 @@ macro_rules! impl_value{
                         let(b,v) = <$ty>::parse_read(b)?;
                         Ok((b,Self::$name(v)))
                     })*
-                    _ => Err(Error::Invalid)
+                    _ => Err(ParseError::Invalid.into())
                 }
             }
 
@@ -76,7 +76,7 @@ macro_rules! impl_value{
                     $($id => {
                         Ok((b,Self::$name))
                     })*
-                    _ => Err(Error::Invalid)
+                    _ => Err(ParseError::Invalid.into())
                 }
             }
 

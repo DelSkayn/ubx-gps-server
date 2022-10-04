@@ -10,12 +10,12 @@ macro_rules! impl_inf {
             fn parse_read(b: &[u8]) -> crate::parse::Result<(&[u8], Self)> {
                 let (b, len) = u16::parse_read(b)?;
                 let (b, str) = parse::collect::<u8>(b, len as usize)?;
-                let res = String::from_utf8(str).map_err(|_| crate::parse::Error::Invalid)?;
+                let res = String::from_utf8(str).map_err(|_| crate::parse::ParseError::Invalid)?;
                 Ok((b, $name(res)))
             }
 
             fn parse_write<W: std::io::Write>(&self, b: &mut W) -> crate::parse::Result<()> {
-                let len = u16::try_from(self.0.len()).map_err(|_| crate::parse::Error::Invalid)?;
+                let len = u16::try_from(self.0.len()).map_err(|_| crate::parse::ParseError::Invalid)?;
                 len.parse_write(b)?;
                 for byte in self.0.as_bytes() {
                     byte.parse_write(b)?;

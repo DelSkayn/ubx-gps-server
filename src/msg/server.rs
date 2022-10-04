@@ -1,6 +1,6 @@
 use crate::{
     impl_enum,
-    parse::{self, Error, ParseData, Result},
+    parse::{self, ParseData, ParseError},
 };
 use serde::{Deserialize, Serialize};
 

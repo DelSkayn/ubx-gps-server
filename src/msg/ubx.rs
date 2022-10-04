@@ -1,4 +1,4 @@
-use crate::parse::{self, Error, ParseData, Result, ResultExt};
+use crate::parse::{self, ParseData, ParseError, Result, ResultExt};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 
@@ -22,17 +22,18 @@ macro_rules! impl_class {
             fn parse_read(b: &[u8]) -> crate::parse::Result<(&[u8],Self)>{
                 #[allow(unused_imports)]
                 use crate::parse::ResultExt;
+                use anyhow::Context as ErrorContext;
+
                 let (b,msg) = u8::parse_read(b)?;
                 match msg{
                     $($e => {
                         $(let b = crate::parse::tag(b,($len as u16))
-                            .map_invalid(crate::parse::Error::InvalidLen)
-                            .map_err(|e| {
-                                println!("invalid len {}",stringify!($class));
-                                e
-                            })
+                            .map_invalid(crate::parse::ParseError::InvalidLen)
+                            .context(concat!("invalid len for msg `",stringify!($t),"`"))
                             ?;)*
-                        let (b,res) = <$t>::parse_read(b)?;
+                        let (b,res) = <$t>::parse_read(b)
+                            .context(concat!("failed to parse data for msg `",stringify!($t),"`"))
+                        ?;
                         Ok((b,Self::$var(res)))
                     })*
                     x => {
@@ -68,7 +69,7 @@ macro_rules! impl_class {
                     $($e => {
                         Ok((b,Self::$var))
                     })*
-                    _ => Err(crate::parse::Error::Invalid),
+                    _ => Err(crate::parse::ParseError::Invalid.into()),
                 }
             }
 
@@ -142,8 +143,12 @@ macro_rules! impl_ubx {
         impl ParseData for Ubx{
 
             fn parse_read(b: &[u8]) -> Result<(&[u8],Self)>{
-                let b = parse::tag(b,0xb5u8).map_invalid(Error::InvalidHeader)?;
-                let b = parse::tag(b,0x62u8).map_invalid(Error::InvalidHeader)?;
+                use anyhow::Context as ErrorContext;
+
+                let b = parse::tag(b,0xb5u8).map_invalid(ParseError::InvalidHeader)
+                    .context("failed to parse ubx tag")?;
+                let b = parse::tag(b,0x62u8).map_invalid(ParseError::InvalidHeader)
+                    .context("failed to parse ubx tag")?;
 
                 let c = b;
                 let (b,class) = u8::parse_read(b)?;
@@ -155,7 +160,8 @@ macro_rules! impl_ubx {
                         let (b,ck_b) = u8::parse_read(b)?;
 
                         if !Ubx::checksum_valid(c,ck_a,ck_b) {
-                            return Err(Error::InvalidChecksum);
+                            return Err(anyhow::Error::from(ParseError::InvalidChecksum))
+                                .context("checksum failed for ubx message");
                         }
 
                         Ok((b,Ubx::$var(inner)))
@@ -169,7 +175,8 @@ macro_rules! impl_ubx {
                         let (b,ck_b) = u8::parse_read(b)?;
 
                         if !Ubx::checksum_valid(c,ck_a,ck_b) {
-                            return Err(Error::InvalidChecksum);
+                            return Err(anyhow::Error::from(ParseError::InvalidChecksum))
+                                .context("checksum failed for ubx message");
                         }
 
                         Ok((b,Ubx::Unknown{
@@ -227,8 +234,10 @@ macro_rules! impl_ubx {
         impl ParseData for UbxPoll{
 
             fn parse_read(b: &[u8]) -> Result<(&[u8],Self)>{
-                let b = parse::tag(b,0xb5u8).map_invalid(Error::InvalidHeader)?;
-                let b = parse::tag(b,0x62u8).map_invalid(Error::InvalidHeader)?;
+                use anyhow::bail;
+
+                let b = parse::tag(b,0xb5u8).map_invalid(ParseError::InvalidHeader)?;
+                let b = parse::tag(b,0x62u8).map_invalid(ParseError::InvalidHeader)?;
 
                 let c = b;
                 let (b,class) = u8::parse_read(b)?;
@@ -240,7 +249,7 @@ macro_rules! impl_ubx {
                         let (b,ck_a) = u8::parse_read(b)?;
                         let (b,ck_b) = u8::parse_read(b)?;
                         if !Ubx::checksum_valid(c,ck_a,ck_b){
-                            return Err(Error::InvalidChecksum)
+                            bail!(ParseError::InvalidChecksum)
                         }
                         Ok((b,UbxPoll::$var(inner)))
                     },)*
