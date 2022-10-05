@@ -2,7 +2,7 @@ use std::{net::SocketAddr, str::FromStr};
 
 use anyhow::{anyhow, bail, Context as ErrorContext, Result};
 use clap::{arg, Command};
-use futures::{future, SinkExt, StreamExt};
+use futures::{SinkExt, StreamExt};
 use gps::{connection::Connection, msg::Rtcm, parse::ParseData, VecExt};
 use hyper::{body::HttpBody, Body, Client, Request, Uri};
 use log::{debug, trace, warn};
@@ -86,7 +86,7 @@ async fn run() -> Result<()> {
 
     //eat the incomming messages
     tokio::spawn(async {
-        stream.skip_while(|_| future::ready(true)).count().await;
+        stream.for_each(|_| async { () }).await;
     });
 
     let mut buffer = Vec::new();

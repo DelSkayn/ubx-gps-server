@@ -1,16 +1,17 @@
 use std::{net::SocketAddr, str::FromStr, time::Duration};
 
-use anyhow::{anyhow, Context as ErrorContext, Result};
-use clap::{arg, value_parser, ArgAction, Command};
+use anyhow::{anyhow, bail, Context as ErrorContext, Result};
+use clap::{arg, value_parser, ArgAction, ArgGroup, Command};
 use futures::{FutureExt, SinkExt, StreamExt};
 use gps::{
+    bluetooth::{BluetoothClient, BluetoothServer},
     connection::{ConnectionPool, OutgoingConnection},
     msg::{self, GpsMsg},
     parse::ParseData,
     VecExt,
 };
 
-use log::{info, trace, warn};
+use log::{error, info, trace, warn};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -34,6 +35,49 @@ fn find_message(b: &mut Vec<u8>) {
         idx += 1;
     }
     b.clear();
+}
+
+async fn handle_incomming(
+    port_path: &String,
+    port_baud: u32,
+    port: &mut Option<SerialStream>,
+    x: Vec<u8>,
+) -> Result<()> {
+    if let Ok((_, x)) = msg::Server::parse_read(&x) {
+        match x.msg {
+            msg::server::ServerMsg::Quit => {
+                info!("quiting");
+                return Ok(());
+            }
+            msg::server::ServerMsg::ResetPort => {
+                port.take();
+
+                tokio::time::sleep(Duration::from_secs_f32(0.5)).await;
+
+                let port_builder = tokio_serial::new(port_path, port_baud)
+                    .data_bits(DataBits::Eight)
+                    .parity(Parity::None)
+                    .stop_bits(StopBits::One)
+                    .timeout(Duration::from_secs(1));
+
+                *port =
+                    Some(SerialStream::open(&port_builder).context("failed to open serial port")?);
+            }
+        }
+    } else {
+        port.as_mut()
+            .unwrap()
+            .write_all(&x)
+            .await
+            .context("error writing to device")?;
+        port.as_mut()
+            .unwrap()
+            .flush()
+            .await
+            .context("error writing to device")?;
+    }
+
+    Ok(())
 }
 
 async fn run() -> Result<()> {
@@ -78,6 +122,19 @@ async fn run() -> Result<()> {
         )
         .arg(
             arg!(
+                -b --bluetooth "enable the bluetooth server"
+            )
+            .action(ArgAction::SetTrue),
+        )
+        .arg(
+            arg!(
+                -t --bluetooth-client "enable the bluetooth client"
+            )
+            .action(ArgAction::SetTrue),
+        )
+        .group(ArgGroup::new("bluetooth-flags").args(&["bluetooth", "bluetooth-client"]))
+        .arg(
+            arg!(
                 -D --deamon "run the server as a deamon"
             )
             .action(ArgAction::SetTrue),
@@ -89,6 +146,20 @@ async fn run() -> Result<()> {
 
     let port_path = matches.get_one::<String>("serial").unwrap();
     let port_baud = *matches.get_one::<u32>("baud").unwrap();
+    let bluetooth = *matches.get_one::<bool>("bluetooth").unwrap();
+    let bluetooth_client = *matches.get_one::<bool>("bluetooth-client").unwrap();
+
+    let mut bluetooth = if bluetooth {
+        Some(BluetoothServer::new().await?)
+    } else {
+        None
+    };
+
+    let mut bluetooth_client = if bluetooth_client {
+        Some(BluetoothClient::new().await?)
+    } else {
+        None
+    };
 
     let connection_address = matches
         .get_one::<String>("connect")
@@ -141,65 +212,66 @@ async fn run() -> Result<()> {
                     trace!("message from device {:?}",GpsMsg::parse_read(&buf));
 
                     outgoing_connection.try_send_message(&buf).await;
-                    connections.send(buf).await.unwrap();
+                    if let Some(x) = bluetooth.as_mut(){
+                        if let Err(e) = x.send(buf.clone()).await{
+                            error!("error sending message to bluetooth connection {e}");
+                        }
+                    }
+                    if let Some(x) = bluetooth_client.as_mut(){
+                        if let Err(e) = x.send(buf.clone()).await{
+                            error!("error sending message to bluetooth connection {e}");
+                        }
+                    }
+                    connections.send(buf.clone()).await.unwrap();
                     connections.flush().await.unwrap();
                     find_message(&mut pending_read_bytes);
                 }
             },
+            x = async {
+                if let Some(x) = bluetooth.as_mut(){
+                    x.next().await
+                }else{
+                    futures::future::pending().await
+                }
+            }.fuse() => {
+                let x = match x {
+                    None => {
+                        bail!("bluetooth connection failed")
+                    }
+                    Some(x) => x,
+                };
+                trace!("message from bluetooth {:?}",GpsMsg::parse_read(&x));
+                handle_incomming(&port_path,port_baud,&mut port,x).await?;
+            },
+            x = async {
+                if let Some(x) = bluetooth_client.as_mut(){
+                    x.next().await
+                }else{
+                    futures::future::pending().await
+                }
+            }.fuse() => {
+                let x = match x {
+                    None => {
+                        bail!("bluetooth connection failed")
+                    }
+                    Some(Ok(x)) => x,
+                    Some(Err(e)) => {
+                        error!("error reading from bluetooth connection: {e}");
+                        continue;
+                    }
+                };
+                trace!("message from bluetooth {:?}",GpsMsg::parse_read(&x));
+                handle_incomming(&port_path,port_baud,&mut port,x).await?;
+            },
             x = outgoing_connection_future => {
                 let x = x.unwrap();
                 trace!("message from outgoing {:?}",GpsMsg::parse_read(&x));
-                if let Ok((_,x)) = msg::Server::parse_read(&x){
-                    match x.msg{
-                        msg::server::ServerMsg::Quit => {
-                            info!("quiting");
-                            return Ok(())
-                        }
-                        msg::server::ServerMsg::ResetPort => {
-                            port.take();
-
-                            tokio::time::sleep(Duration::from_secs_f32(0.5)).await;
-
-                            let port_builder = tokio_serial::new(port_path, port_baud)
-                                .data_bits(DataBits::Eight)
-                                .parity(Parity::None)
-                                .stop_bits(StopBits::One)
-                                .timeout(Duration::from_secs(1));
-
-                            port = Some(SerialStream::open(&port_builder).context("failed to open serial port")?);
-                        }
-                    }
-                }else{
-                    port.as_mut().unwrap().write_all(&x).await.context("error writing to device")?;
-                    port.as_mut().unwrap().flush().await.context("error writing to device")?;
-                }
+                handle_incomming(&port_path,port_baud,&mut port,x).await?;
             },
             x = connection_future => {
                 let x = x.unwrap();
                 trace!("message from connection {:?}",GpsMsg::parse_read(&x));
-                if let Ok((_,x)) = msg::Server::parse_read(&x){
-                    match x.msg{
-                        msg::server::ServerMsg::Quit => {
-                            info!("quiting");
-                            return Ok(())},
-                        msg::server::ServerMsg::ResetPort => {
-                            port.take();
-
-                            tokio::time::sleep(Duration::from_secs_f32(0.5)).await;
-
-                            let port_builder = tokio_serial::new(port_path, port_baud)
-                                .data_bits(DataBits::Eight)
-                                .parity(Parity::None)
-                                .stop_bits(StopBits::One)
-                                .timeout(Duration::from_secs(1));
-
-                            port = Some(SerialStream::open(&port_builder).context("failed to open serial port")?);
-                        }
-                    }
-                }else{
-                    port.as_mut().unwrap().write_all(&x).await.context("error writing to device")?;
-                    port.as_mut().unwrap().flush().await.context("error writing to device")?;
-                }
+                handle_incomming(&port_path,port_baud,&mut port,x).await?;
             }
         }
     }

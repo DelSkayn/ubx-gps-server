@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+pub mod bluetooth;
 pub mod connection;
 pub mod msg;
 pub mod parse;
