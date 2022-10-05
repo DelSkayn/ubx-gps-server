@@ -92,7 +92,7 @@ async fn run() -> Result<()> {
         )
         .arg(
             arg!(
-                -b --baud <BOUD> "Set the baud rate for the serial port"
+                -r --baud <BOUD> "Set the baud rate for the serial port"
             )
             .required(false)
             .requires("serial")
@@ -128,11 +128,11 @@ async fn run() -> Result<()> {
         )
         .arg(
             arg!(
-                -t --bluetooth-client "enable the bluetooth client"
+                -t --bluetooth_client "enable the bluetooth client"
             )
             .action(ArgAction::SetTrue),
         )
-        .group(ArgGroup::new("bluetooth-flags").args(&["bluetooth", "bluetooth-client"]))
+        .group(ArgGroup::new("bluetooth-flags").args(&["bluetooth", "bluetooth_client"]))
         .arg(
             arg!(
                 -D --deamon "run the server as a deamon"
@@ -147,7 +147,7 @@ async fn run() -> Result<()> {
     let port_path = matches.get_one::<String>("serial").unwrap();
     let port_baud = *matches.get_one::<u32>("baud").unwrap();
     let bluetooth = *matches.get_one::<bool>("bluetooth").unwrap();
-    let bluetooth_client = *matches.get_one::<bool>("bluetooth-client").unwrap();
+    let bluetooth_client = *matches.get_one::<bool>("bluetooth_client").unwrap();
 
     let mut bluetooth = if bluetooth {
         Some(BluetoothServer::new().await?)
