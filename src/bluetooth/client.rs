@@ -4,33 +4,28 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context as ErrorContext, Result};
 use bluer::{
-    gatt::{remote::Characteristic, CharacteristicReader, CharacteristicWriter},
+    l2cap::{SocketAddr, Stream},
     Adapter, AdapterEvent, Device, Session,
 };
-use futures::{pin_mut, Sink, Stream, StreamExt};
+use futures::{pin_mut, Sink, Stream as StreamTrait, StreamExt};
 use log::{error, info};
 use pin_project::pin_project;
 use tokio::time::sleep;
 
-use crate::{
-    bluetooth::{CHARACTERISTIC_UUID, SERVICE_UUID},
-    connection::{MessageSink, MessageStream},
-};
+use crate::connection::{MessageSink, MessageStream};
 
 #[pin_project]
 pub struct BluetoothClient {
     session: Session,
     adapter: Adapter,
     #[pin]
-    writer: MessageSink<CharacteristicWriter>,
-    #[pin]
-    reader: MessageStream<CharacteristicReader>,
+    source: MessageSink<MessageStream<Stream>>,
 }
 
 impl BluetoothClient {
-    async fn find_characteristic(device: &Device) -> Result<Option<Characteristic>> {
+    async fn find_address(device: &Device) -> Result<Option<SocketAddr>> {
         let addr = device.address();
         let uuids = device.uuids().await?.unwrap_or_default();
         let md = device.manufacturer_data().await?;
@@ -39,51 +34,33 @@ impl BluetoothClient {
             addr, &uuids, &md
         );
 
-        if uuids.contains(&SERVICE_UUID) {
-            info!("found device with our service");
+        if !uuids.contains(&super::SERVICE_UUID) {
+            return Ok(None);
+        }
+        info!("found device with our service");
 
-            sleep(Duration::from_secs(2)).await;
-            if !device.is_connected().await? {
-                info!("trying to connect to device");
-                loop {
-                    match device.connect().await {
-                        Ok(()) => break,
-                        Err(err) => {
-                            error!("error connecting to device: {}", err);
-                            sleep(Duration::from_secs(1)).await;
-                        }
+        sleep(Duration::from_secs(2)).await;
+        if !device.is_connected().await? {
+            info!("trying to connect to device");
+            loop {
+                match device.connect().await {
+                    Ok(()) => break,
+                    Err(err) => {
+                        error!("error connecting to device: {}", err);
+                        sleep(Duration::from_secs(1)).await;
                     }
                 }
-                info!("connected to bluetooth device!");
             }
+            info!("connected to bluetooth device!");
         } else {
-            info!("already connected to bluetooth device!");
+            info!("already connected to device");
         }
 
-        info!("enumerating services");
-        for service in device.services().await? {
-            let uuid = service.uuid().await?;
-
-            info!("\tservice uuid: {}", &uuid);
-            info!("\tservice data: {:?}", service.all_properties().await?);
-            if uuid == SERVICE_UUID {
-                info!("\tfound service");
-                for chari in service.characteristics().await? {
-                    let uuid = chari.uuid().await?;
-                    info!("\tcharacteristics uuid: {}", &uuid);
-                    info!(
-                        "\tcharacteristics data: {:?}",
-                        chari.all_properties().await?
-                    );
-                    if uuid == CHARACTERISTIC_UUID {
-                        info!("found our characteristics");
-                        return Ok(Some(chari));
-                    }
-                }
-            }
-        }
-        info!("\t not found");
-        Ok(None)
+        Ok(Some(SocketAddr::new(
+            addr,
+            bluer::AddressType::LePublic,
+            super::PSM_LE_ADDR,
+        )))
     }
 
     pub async fn new() -> Result<Self> {
@@ -101,14 +78,14 @@ impl BluetoothClient {
         let discover = adapter.discover_devices().await?;
         pin_mut!(discover);
 
-        let char = loop {
+        let address = loop {
             if let Some(evt) = discover.next().await {
                 match evt {
                     AdapterEvent::DeviceAdded(addr) => {
                         let device = adapter.device(addr)?;
-                        match Self::find_characteristic(&device).await {
-                            Ok(Some(char)) => {
-                                break char;
+                        match Self::find_address(&device).await {
+                            Ok(Some(address)) => {
+                                break address;
                             }
                             Ok(None) => {}
                             Err(err) => {
@@ -127,27 +104,26 @@ impl BluetoothClient {
             }
         };
 
-        info!("acquiring connection");
-        let reader = char.notify_io().await?;
-        let reader = MessageStream::new(reader);
-        let writer = char.write_io().await?;
-        let writer = MessageSink::new(writer);
+        let stream = Stream::connect(address)
+            .await
+            .context("could not connect to bluetooth client")?;
+
+        let source = MessageSink::new(MessageStream::new(stream));
 
         Ok(BluetoothClient {
             session,
             adapter,
-            reader,
-            writer,
+            source,
         })
     }
 }
 
-impl Stream for BluetoothClient {
+impl StreamTrait for BluetoothClient {
     type Item = Result<Vec<u8>>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.project()
-            .reader
+            .source
             .poll_next(cx)
             .map_err(anyhow::Error::from)
     }
@@ -157,18 +133,18 @@ impl Sink<Vec<u8>> for BluetoothClient {
     type Error = anyhow::Error;
 
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.project().writer.poll_ready(cx)
+        self.project().source.poll_ready(cx)
     }
 
     fn start_send(self: Pin<&mut Self>, item: Vec<u8>) -> Result<(), Self::Error> {
-        self.project().writer.start_send(item)
+        self.project().source.start_send(item)
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.project().writer.poll_flush(cx)
+        self.project().source.poll_flush(cx)
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.project().writer.poll_close(cx)
+        self.project().source.poll_close(cx)
     }
 }
