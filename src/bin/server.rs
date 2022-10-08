@@ -213,14 +213,12 @@ async fn run() -> Result<()> {
 
                     outgoing_connection.try_send_message(&buf).await;
                     if let Some(x) = bluetooth.as_mut(){
-                        if let Err(e) = x.send(buf.clone()).await{
-                            error!("error sending message to bluetooth connection {e}");
-                        }
+                        trace!("sending message to bluetooth clients");
+                        x.send(buf.clone()).await.unwrap()
                     }
                     if let Some(x) = bluetooth_client.as_mut(){
-                        if let Err(e) = x.send(buf.clone()).await{
-                            error!("error sending message to bluetooth connection {e}");
-                        }
+                        trace!("sending message to bluetooth server");
+                        x.send(buf.clone()).await.unwrap();
                     }
                     connections.send(buf.clone()).await.unwrap();
                     connections.flush().await.unwrap();

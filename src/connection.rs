@@ -201,6 +201,15 @@ impl<T: AsyncWrite + Unpin> Sink<Vec<u8>> for MessageSink<T> {
     }
 }
 
+impl<T: Stream> Stream for MessageSink<T> {
+    type Item = T::Item;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
+        this.source.poll_next(cx)
+    }
+}
+
 #[pin_project]
 pub struct Connection {
     #[pin]
